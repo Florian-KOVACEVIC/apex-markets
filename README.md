@@ -1,10 +1,10 @@
 # Compass Pro — Financial Analysis
 
+**[Live Demo](https://compass-pro-florian-kovacevic.streamlit.app/)**
+
 Advanced financial analysis application with detailed fundamental metrics, statistical tools, and multi-asset comparison.
 
 Built as a personal project to deepen my understanding of equity analysis and quantitative metrics.
-
-![Compass Pro Overview](screenshots/overview.png)
 
 ## Features
 
@@ -30,8 +30,6 @@ Built as a personal project to deepen my understanding of equity analysis and qu
 - News feed integration per asset
 - Analyst consensus and price targets
 - Exportable metric tables
-
-![Analysis View](screenshots/analysis.png)
 
 ## Tech Stack
 
