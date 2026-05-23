@@ -175,6 +175,41 @@ st.markdown("""
     .badge-negative { color: #ff5252; font-weight: 700; }
     .stMetric label { font-size: 0.78rem !important; color: #8b92a5 !important; }
     div[data-testid="stMetricValue"] { font-size: 1.1rem !important; }
+
+    /* ── Onglets — style pro ── */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 0;
+        background: #151725;
+        border-radius: 8px;
+        padding: 4px;
+        border: 1px solid #2a2d3e;
+    }
+    .stTabs [data-baseweb="tab"] {
+        padding: 10px 20px;
+        border-radius: 6px;
+        font-size: 0.82rem;
+        font-weight: 500;
+        color: #8b92a5;
+        transition: all 0.15s ease;
+        border: none;
+        background: transparent;
+    }
+    .stTabs [data-baseweb="tab"]:hover {
+        color: #c5cae9;
+        background: rgba(0, 102, 255, 0.08);
+    }
+    .stTabs [aria-selected="true"] {
+        color: #ffffff !important;
+        background: linear-gradient(135deg, #0055dd, #0066ff) !important;
+        font-weight: 600 !important;
+        box-shadow: 0 2px 8px rgba(0, 102, 255, 0.25);
+    }
+    .stTabs [data-baseweb="tab-highlight"] {
+        display: none;
+    }
+    .stTabs [data-baseweb="tab-border"] {
+        display: none;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -1093,14 +1128,16 @@ def render_fear_greed(score: int):
         label, color = "Avidité extrême", "#00e676"
 
     st.markdown(f"""
-    <div style="background:#1e2130;border-radius:12px;padding:1.2rem;text-align:center;">
-        <div style="font-size:0.85rem;color:#8b92a5;margin-bottom:0.4rem;">
-            Fear & Greed (proxy)
+    <div style="background:#1e2130;border-radius:8px;padding:0.6rem 0.8rem;text-align:center;">
+        <div style="font-size:0.7rem;color:#8b92a5;margin-bottom:0.15rem;letter-spacing:0.03em;">
+            Fear & Greed
         </div>
-        <div style="font-size:3rem;font-weight:800;color:{color};">{score}</div>
-        <div style="font-size:1rem;color:{color};font-weight:600;">{label}</div>
-        <div style="background:#2a2d3e;border-radius:20px;height:10px;margin-top:0.8rem;">
-            <div style="background:{color};width:{score}%;height:10px;
+        <div style="display:flex;align-items:baseline;justify-content:center;gap:6px;">
+            <span style="font-size:1.6rem;font-weight:800;color:{color};line-height:1;">{score}</span>
+            <span style="font-size:0.7rem;color:{color};font-weight:600;">{label}</span>
+        </div>
+        <div style="background:#2a2d3e;border-radius:20px;height:5px;margin-top:0.35rem;">
+            <div style="background:{color};width:{score}%;height:5px;
                         border-radius:20px;transition:width 0.5s;"></div>
         </div>
     </div>""", unsafe_allow_html=True)
@@ -1309,7 +1346,7 @@ def main():
             if sector:
                 st.caption(f"{sector} · {industry}")
 
-            col1, col2, col3, col4, col5 = st.columns(5)
+            col1, col2, col3, col4, col5 = st.columns([1.3, 1, 1, 1, 0.9])
             with col1:
                 st.metric("Prix actuel", f"{last_close:.2f} {currency}",
                           f"{day_chg:+.2f} ({day_chg_pct:+.2f}%)")
