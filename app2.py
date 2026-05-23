@@ -451,7 +451,7 @@ def create_price_chart(df: pd.DataFrame, symbol: str, options: dict) -> go.Figur
             ), row=2, col=1)
 
     # ── Affichage style TradingView : dernières ~120 bougies visibles,
-    #    scroll / zoom pour voir le reste ──
+    #    zoom molette + pan clic-glisser pour naviguer ──
     max_visible = 120
     if len(df) > max_visible:
         x_start = df.index[-max_visible]
@@ -460,20 +460,34 @@ def create_price_chart(df: pd.DataFrame, symbol: str, options: dict) -> go.Figur
         x_start = df.index[0]
         x_end   = df.index[-1]
 
+    # Boutons de plage rapide (style TradingView)
+    range_buttons = [
+        dict(count=5,  label="5j",  step="day",   stepmode="backward"),
+        dict(count=1,  label="1m",  step="month", stepmode="backward"),
+        dict(count=3,  label="3m",  step="month", stepmode="backward"),
+        dict(count=6,  label="6m",  step="month", stepmode="backward"),
+        dict(count=1,  label="1a",  step="year",  stepmode="backward"),
+        dict(step="all", label="Tout"),
+    ]
+
     fig.update_layout(
         title=dict(text=f"<b>{symbol}</b> — Analyse du Prix", font_size=16),
         paper_bgcolor=CHART_BG, plot_bgcolor=CHART_BG,
-        xaxis_rangeslider_visible=True,
-        xaxis_rangeslider=dict(
-            bgcolor="#1a1c2e",
-            bordercolor="#2a2d3e",
-            thickness=0.06,
-        ),
+        xaxis_rangeslider_visible=False,
         xaxis_range=[x_start, x_end],
+        xaxis_rangeselector=dict(
+            buttons=range_buttons,
+            bgcolor="#1e2130",
+            activecolor="#0066ff",
+            bordercolor="#2a2d3e",
+            font=dict(color="#c5cae9", size=11),
+            x=0, y=1.06,
+        ),
         legend=dict(bgcolor="rgba(0,0,0,0.4)", font_color="#ccc"),
         hovermode="x unified",
-        height=600,
-        margin=dict(l=10, r=10, t=40, b=10),
+        height=560,
+        margin=dict(l=10, r=10, t=60, b=10),
+        dragmode="pan",
     )
     if options.get("log_scale"):
         fig.update_yaxes(type="log", row=1, col=1)
