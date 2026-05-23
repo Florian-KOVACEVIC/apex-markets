@@ -450,45 +450,30 @@ def create_price_chart(df: pd.DataFrame, symbol: str, options: dict) -> go.Figur
                 line=dict(color="#ff9800", width=1.2),
             ), row=2, col=1)
 
-    # ── Affichage style TradingView : dernières ~120 bougies visibles,
-    #    zoom molette + pan clic-glisser pour naviguer ──
-    max_visible = 120
-    if len(df) > max_visible:
-        x_start = df.index[-max_visible]
-        x_end   = df.index[-1]
-    else:
-        x_start = df.index[0]
-        x_end   = df.index[-1]
+    # ── Suppression des gaps (weekends, nuits) comme TradingView ──
+    itv = options.get("interval", "1d")
+    is_intraday = itv in ("1m", "5m", "15m", "30m", "1h")
 
-    # Boutons de plage rapide (style TradingView)
-    range_buttons = [
-        dict(count=5,  label="5j",  step="day",   stepmode="backward"),
-        dict(count=1,  label="1m",  step="month", stepmode="backward"),
-        dict(count=3,  label="3m",  step="month", stepmode="backward"),
-        dict(count=6,  label="6m",  step="month", stepmode="backward"),
-        dict(count=1,  label="1a",  step="year",  stepmode="backward"),
-        dict(step="all", label="Tout"),
-    ]
+    rangebreaks = [dict(bounds=["sat", "mon"])]  # supprimer weekends
+    if is_intraday:
+        # Supprimer les heures hors marché (pré/post : 20h–09h30 UTC-4)
+        # En UTC les marchés US ouvrent ~13:30 et ferment ~20:00
+        rangebreaks.append(dict(bounds=[20, 13.5], pattern="hour"))
 
     fig.update_layout(
         title=dict(text=f"<b>{symbol}</b> — Analyse du Prix", font_size=16),
         paper_bgcolor=CHART_BG, plot_bgcolor=CHART_BG,
         xaxis_rangeslider_visible=False,
-        xaxis_range=[x_start, x_end],
-        xaxis_rangeselector=dict(
-            buttons=range_buttons,
-            bgcolor="#1e2130",
-            activecolor="#0066ff",
-            bordercolor="#2a2d3e",
-            font=dict(color="#c5cae9", size=11),
-            x=0, y=1.06,
-        ),
         legend=dict(bgcolor="rgba(0,0,0,0.4)", font_color="#ccc"),
         hovermode="x unified",
         height=560,
-        margin=dict(l=10, r=10, t=60, b=10),
+        margin=dict(l=10, r=10, t=40, b=10),
         dragmode="pan",
     )
+    fig.update_xaxes(rangebreaks=rangebreaks, row=1, col=1)
+    if rows == 2:
+        fig.update_xaxes(rangebreaks=rangebreaks, row=2, col=1)
+
     if options.get("log_scale"):
         fig.update_yaxes(type="log", row=1, col=1)
 
@@ -500,7 +485,7 @@ def create_price_chart(df: pd.DataFrame, symbol: str, options: dict) -> go.Figur
     return fig
 
 
-def create_technical_charts(df: pd.DataFrame) -> go.Figure:
+def create_technical_charts(df: pd.DataFrame, interval: str = "1d") -> go.Figure:
     """Panneau RSI + MACD + Stochastique + OBV."""
     fig = make_subplots(
         rows=4, cols=1,
@@ -551,6 +536,12 @@ def create_technical_charts(df: pd.DataFrame) -> go.Figure:
                                      line=dict(color="#f9a825", width=1,
                                                dash="dot")), row=4, col=1)
 
+    # Suppression des gaps (weekends, nuits)
+    is_intraday = interval in ("1m", "5m", "15m", "30m", "1h")
+    rangebreaks = [dict(bounds=["sat", "mon"])]
+    if is_intraday:
+        rangebreaks.append(dict(bounds=[20, 13.5], pattern="hour"))
+
     fig.update_layout(
         paper_bgcolor=CHART_BG, plot_bgcolor=CHART_BG,
         height=680, hovermode="x unified",
@@ -558,6 +549,8 @@ def create_technical_charts(df: pd.DataFrame) -> go.Figure:
         legend=dict(bgcolor="rgba(0,0,0,0.4)", font_color="#ccc"),
         margin=dict(l=10, r=10, t=30, b=10),
     )
+    for i in range(1, 5):
+        fig.update_xaxes(rangebreaks=rangebreaks, row=i, col=1)
     for ax in ["xaxis", "xaxis2", "xaxis3", "xaxis4",
                "yaxis", "yaxis2", "yaxis3", "yaxis4"]:
         fig.update_layout(**{ax: dict(
@@ -566,7 +559,7 @@ def create_technical_charts(df: pd.DataFrame) -> go.Figure:
     return fig
 
 
-def create_drawdown_chart(df: pd.DataFrame, symbol: str) -> go.Figure:
+def create_drawdown_chart(df: pd.DataFrame, symbol: str, interval: str = "1d") -> go.Figure:
     """Drawdown historique."""
     fig = go.Figure()
     if "Drawdown" in df.columns:
@@ -576,11 +569,15 @@ def create_drawdown_chart(df: pd.DataFrame, symbol: str) -> go.Figure:
             line=dict(color=DOWN_COLOR, width=1.5),
             fillcolor="rgba(255,82,82,0.2)",
         ))
+    rangebreaks = [dict(bounds=["sat", "mon"])]
+    if interval in ("1m", "5m", "15m", "30m", "1h"):
+        rangebreaks.append(dict(bounds=[20, 13.5], pattern="hour"))
     fig.update_layout(
         title=f"<b>{symbol}</b> — Drawdown historique (%)",
         paper_bgcolor=CHART_BG, plot_bgcolor=CHART_BG,
         yaxis=dict(ticksuffix="%", gridcolor=GRID_COLOR, tickfont_color="#8b92a5"),
-        xaxis=dict(gridcolor=GRID_COLOR, tickfont_color="#8b92a5"),
+        xaxis=dict(gridcolor=GRID_COLOR, tickfont_color="#8b92a5",
+                   rangebreaks=rangebreaks),
         height=300, margin=dict(l=10, r=10, t=40, b=10),
     )
     return fig
@@ -1192,6 +1189,7 @@ def main():
             "MA100": show_ma100, "MA200": show_ma200,
             "bollinger": show_bb, "show_volume": show_volume,
             "log_scale": log_scale,
+            "interval": interval,
         }
 
         st.markdown("---")
@@ -1383,7 +1381,7 @@ def main():
 
             st.markdown('<p class="section-title">Drawdown</p>',
                         unsafe_allow_html=True)
-            st.plotly_chart(create_drawdown_chart(df, symbol_input),
+            st.plotly_chart(create_drawdown_chart(df, symbol_input, interval),
                             use_container_width=True, key="chart_drawdown")
 
             st.markdown('<p class="section-title">Distribution des rendements</p>',
@@ -1405,7 +1403,7 @@ def main():
             st.markdown("---")
             st.markdown('<p class="section-title">Indicateurs Techniques</p>',
                         unsafe_allow_html=True)
-            st.plotly_chart(create_technical_charts(df), use_container_width=True, key="chart_4")
+            st.plotly_chart(create_technical_charts(df, interval), use_container_width=True, key="chart_4")
 
             # Dernières valeurs
             st.markdown('<p class="section-title">Dernières Valeurs</p>',
@@ -1481,11 +1479,15 @@ def main():
                     fillcolor="rgba(255,152,0,0.15)",
                     name="Vol. glissante 30j",
                 ))
+                _rb = [dict(bounds=["sat", "mon"])]
+                if interval in ("1m", "5m", "15m", "30m", "1h"):
+                    _rb.append(dict(bounds=[20, 13.5], pattern="hour"))
                 fig_vol.update_layout(
                     paper_bgcolor=CHART_BG, plot_bgcolor=CHART_BG,
                     yaxis=dict(ticksuffix="%", gridcolor=GRID_COLOR,
                                tickfont_color="#8b92a5"),
-                    xaxis=dict(gridcolor=GRID_COLOR, tickfont_color="#8b92a5"),
+                    xaxis=dict(gridcolor=GRID_COLOR, tickfont_color="#8b92a5",
+                               rangebreaks=_rb),
                     height=320, margin=dict(l=10, r=10, t=10, b=10),
                 )
                 st.plotly_chart(fig_vol, use_container_width=True, key="chart_7")
