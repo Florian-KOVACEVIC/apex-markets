@@ -618,7 +618,8 @@ def create_returns_distribution(df: pd.DataFrame) -> go.Figure:
         xaxis=dict(gridcolor=GRID_COLOR, ticksuffix="%", tickfont_color="#8b92a5"),
         yaxis=dict(gridcolor=GRID_COLOR, tickfont_color="#8b92a5", title="Densité"),
         legend=dict(bgcolor="rgba(0,0,0,0.4)", font_color="#ccc"),
-        height=400, margin=dict(l=10, r=10, t=40, b=10),
+        height=480, margin=dict(l=50, r=30, t=50, b=40),
+        bargap=0.06,
     )
     return fig
 
@@ -746,7 +747,7 @@ def display_fundamentals(info: dict):
         return
 
     # ─── Section Prix ────────────────────────────────────────
-    st.markdown('<p class="section-title">💰 Données de Prix</p>', unsafe_allow_html=True)
+    st.markdown('<p class="section-title">Données de Prix</p>', unsafe_allow_html=True)
     cols = st.columns(4)
     price_fields = [
         ("Prix actuel",     "currentPrice",  "$"),
@@ -767,7 +768,7 @@ def display_fundamentals(info: dict):
                 metric_with_tooltip(label, fmt(val, suffix="", prefix=pfx) if val else "N/A")
 
     # ─── Market Cap & Beta ───────────────────────────────────
-    st.markdown('<p class="section-title">🏦 Capitalisation & Valorisation</p>', unsafe_allow_html=True)
+    st.markdown('<p class="section-title">Capitalisation & Valorisation</p>', unsafe_allow_html=True)
     cols = st.columns(4)
     val_fields = [
         ("Market Cap",    "marketCap",         fmt_large),
@@ -789,7 +790,7 @@ def display_fundamentals(info: dict):
             metric_with_tooltip(label, fn(val) if val is not None else "N/A")
 
     # ─── Rentabilité ─────────────────────────────────────────
-    st.markdown('<p class="section-title">📊 Rentabilité</p>', unsafe_allow_html=True)
+    st.markdown('<p class="section-title">Rentabilité</p>', unsafe_allow_html=True)
     cols = st.columns(4)
     profit_fields = [
         ("ROE",             "returnOnEquity",    lambda v: fmt(v*100, 1, "%")),
@@ -807,7 +808,7 @@ def display_fundamentals(info: dict):
             metric_with_tooltip(label, fn(val) if val is not None else "N/A")
 
     # ─── Dividendes ──────────────────────────────────────────
-    st.markdown('<p class="section-title">💸 Dividendes</p>', unsafe_allow_html=True)
+    st.markdown('<p class="section-title">Dividendes</p>', unsafe_allow_html=True)
     cols = st.columns(4)
     div_fields = [
         ("Dividend Yield",  "dividendYield",   lambda v: fmt(v, 2, "%")),
@@ -821,7 +822,7 @@ def display_fundamentals(info: dict):
             metric_with_tooltip(label, fn(val) if val is not None else "N/A")
 
     # ─── Structure financière ────────────────────────────────
-    st.markdown('<p class="section-title">🏗️ Structure Financière</p>', unsafe_allow_html=True)
+    st.markdown('<p class="section-title">Structure Financière</p>', unsafe_allow_html=True)
     cols = st.columns(4)
     struct_fields = [
         ("Dette/Cap. prop.", "debtToEquity",      lambda v: fmt(v, 2)),
@@ -851,11 +852,11 @@ def display_technical_analysis(df: pd.DataFrame):
     if "RSI" in df.columns and not np.isnan(last["RSI"]):
         rsi_val = last["RSI"]
         if rsi_val > 70:
-            signals.append(("RSI", f"{rsi_val:.1f}", "🔴 Surachat", "negative"))
+            signals.append(("RSI", f"{rsi_val:.1f}", "Surachat", "negative"))
         elif rsi_val < 30:
-            signals.append(("RSI", f"{rsi_val:.1f}", "🟢 Survente", "positive"))
+            signals.append(("RSI", f"{rsi_val:.1f}", "Survente", "positive"))
         else:
-            signals.append(("RSI", f"{rsi_val:.1f}", "⚪ Neutre", "neutral"))
+            signals.append(("RSI", f"{rsi_val:.1f}", "Neutre", "neutral"))
 
     # MA Crossover Signal
     if "SMA20" in df.columns and "SMA50" in df.columns:
@@ -865,13 +866,13 @@ def display_technical_analysis(df: pd.DataFrame):
             cross_down = last["SMA20"] < last["SMA50"]  and prev["SMA20"] >= prev["SMA50"]
             pos_cross  = last["SMA20"] > last["SMA50"]
             if cross_up:
-                signals.append(("MA20/MA50", "↑ Croisement", "🟢 Golden Cross", "positive"))
+                signals.append(("MA20/MA50", "↑ Croisement", "Golden Cross", "positive"))
             elif cross_down:
-                signals.append(("MA20/MA50", "↓ Croisement", "🔴 Death Cross", "negative"))
+                signals.append(("MA20/MA50", "↓ Croisement", "Death Cross", "negative"))
             elif pos_cross:
-                signals.append(("MA20/MA50", "MA20 > MA50", "🟢 Tendance haussière", "positive"))
+                signals.append(("MA20/MA50", "MA20 > MA50", "Tendance haussière", "positive"))
             else:
-                signals.append(("MA20/MA50", "MA20 < MA50", "🔴 Tendance baissière", "negative"))
+                signals.append(("MA20/MA50", "MA20 < MA50", "Tendance baissière", "negative"))
 
     # MACD Signal
     if "MACD" in df.columns and "MACD_Signal" in df.columns:
@@ -882,27 +883,27 @@ def display_technical_analysis(df: pd.DataFrame):
             bear_cross = (last["MACD"] < last["MACD_Signal"]
                           and prev["MACD"] >= prev["MACD_Signal"])
             if bull_cross:
-                signals.append(("MACD", "Croisement haussier", "🟢 Signal d'achat", "positive"))
+                signals.append(("MACD", "Croisement haussier", "Signal d'achat", "positive"))
             elif bear_cross:
-                signals.append(("MACD", "Croisement baissier", "🔴 Signal de vente", "negative"))
+                signals.append(("MACD", "Croisement baissier", "Signal de vente", "negative"))
             elif last["MACD"] > last["MACD_Signal"]:
-                signals.append(("MACD", "MACD > Signal", "🟢 Momentum positif", "positive"))
+                signals.append(("MACD", "MACD > Signal", "Momentum positif", "positive"))
             else:
-                signals.append(("MACD", "MACD < Signal", "🔴 Momentum négatif", "negative"))
+                signals.append(("MACD", "MACD < Signal", "Momentum négatif", "negative"))
 
     # Bollinger Band Position
     if "BB_Upper" in df.columns:
         price = last["Close"]
         if price > last["BB_Upper"]:
-            signals.append(("Bollinger", f"Prix: {price:.2f}", "🔴 Au-dessus BB supér.", "negative"))
+            signals.append(("Bollinger", f"Prix: {price:.2f}", "Au-dessus BB supér.", "negative"))
         elif price < last["BB_Lower"]:
-            signals.append(("Bollinger", f"Prix: {price:.2f}", "🟢 En-dessous BB infér.", "positive"))
+            signals.append(("Bollinger", f"Prix: {price:.2f}", "En-dessous BB infér.", "positive"))
         else:
             pct = (price - last["BB_Lower"]) / (last["BB_Upper"] - last["BB_Lower"]) * 100
-            signals.append(("Bollinger", f"{pct:.0f}% dans la bande", "⚪ Intérieur BB", "neutral"))
+            signals.append(("Bollinger", f"{pct:.0f}% dans la bande", "Intérieur BB", "neutral"))
 
     # Display signals
-    st.markdown('<p class="section-title">🎯 Signaux de Trading</p>', unsafe_allow_html=True)
+    st.markdown('<p class="section-title">Signaux de Trading</p>', unsafe_allow_html=True)
     cols = st.columns(len(signals) if signals else 1)
     for i, (ind, val, sig, kind) in enumerate(signals):
         with cols[i]:
@@ -921,7 +922,7 @@ def display_statistics(stats: dict):
     if not stats:
         return
 
-    st.markdown('<p class="section-title">📈 Performance</p>', unsafe_allow_html=True)
+    st.markdown('<p class="section-title">Performance</p>', unsafe_allow_html=True)
     cols = st.columns(4)
     fields = [
         ("Rend. total",       "total_return",       lambda v: fmt(v*100, 2, "%")),
@@ -948,7 +949,7 @@ def display_risk_analysis(risk: dict):
     if not risk:
         return
 
-    st.markdown('<p class="section-title">⚠️ Métriques de Risque</p>', unsafe_allow_html=True)
+    st.markdown('<p class="section-title">Métriques de Risque</p>', unsafe_allow_html=True)
     cols = st.columns(4)
     fields = [
         ("VaR 95% (1j)",    "VaR_95",     lambda v: fmt(v*100, 2, "%")),
@@ -967,7 +968,7 @@ def display_risk_analysis(risk: dict):
     var95 = risk.get("VaR_95", 0)
     if var95:
         st.info(
-            f"📌 Avec un niveau de confiance de 95%, la perte maximale attendue sur "
+            f"Avec un niveau de confiance de 95%, la perte maximale attendue sur "
             f"une journée est de **{abs(var95)*100:.2f}%**."
         )
 
@@ -1068,7 +1069,7 @@ def main():
 
     # ─── Sidebar ─────────────────────────────────────────────
     with st.sidebar:
-        st.markdown("## ⚙️ Configuration")
+        st.markdown("## Configuration")
 
         symbol_input = st.text_input(
             "Ticker principal",
@@ -1083,14 +1084,14 @@ def main():
             help="Fenêtre temporelle d'analyse. Les intervalles disponibles s'adaptent automatiquement.",
         )
         interval_map = {
-            "5d":   ["5m", "15m", "30m", "1h", "1d"],
-            "1mo":  ["30m", "1h", "1d", "1wk"],
-            "3mo":  ["1h", "1d", "1wk"],
-            "6mo":  ["1d", "1wk"],
-            "1y":   ["1d", "1wk", "1mo"],
+            "5d":   ["1m", "5m", "15m", "30m", "1h", "1d"],
+            "1mo":  ["5m", "15m", "30m", "1h", "1d", "1wk"],
+            "3mo":  ["15m", "30m", "1h", "1d", "1wk"],
+            "6mo":  ["1h", "1d", "1wk"],
+            "1y":   ["1h", "1d", "1wk", "1mo"],
             "2y":   ["1d", "1wk", "1mo"],
             "5y":   ["1d", "1wk", "1mo"],
-            "10y":  ["1wk", "1mo"],
+            "10y":  ["1d", "1wk", "1mo"],
             "ytd":  ["1d", "1wk", "1mo"],
             "max":  ["1wk", "1mo"],
         }
@@ -1101,7 +1102,7 @@ def main():
         )
 
         st.markdown("---")
-        st.markdown("### 🔧 Overlays graphique")
+        st.markdown("### Overlays graphique")
         show_ma20   = st.checkbox(
             "MA20", value=False,
             help="Moyenne mobile 20 jours — reflète la tendance court terme. Utilisée pour le swing trading et comme support/résistance dynamique.",
@@ -1139,14 +1140,14 @@ def main():
         }
 
         st.markdown("---")
-        st.markdown("### 📊 Comparaison multi-actifs")
+        st.markdown("### Comparaison multi-actifs")
         compare_input = st.text_input(
             "Ajouter tickers (virgule)",
             placeholder="MSFT, GOOGL, AMZN",
         )
 
         st.markdown("---")
-        st.markdown("### 📑 Sections à afficher")
+        st.markdown("### Sections à afficher")
         show_overview   = st.checkbox("Overview",             value=True)
         show_fund       = st.checkbox("Données fondamentales",value=True)
         show_charts     = st.checkbox("Graphiques avancés",   value=True)
@@ -1158,14 +1159,14 @@ def main():
 
     # ─── Data loading ────────────────────────────────────────
     if not symbol_input:
-        st.info("👋 Entrez un ticker dans la barre latérale pour commencer.")
+        st.info("Entrez un ticker dans la barre latérale pour commencer.")
         return
 
     with st.spinner(f"Chargement des données pour **{symbol_input}**…"):
         df_raw = load_data(symbol_input, period, interval)
 
     if df_raw.empty:
-        st.error(f"❌ Impossible de récupérer les données pour `{symbol_input}`. "
+        st.error(f"Impossible de récupérer les données pour `{symbol_input}`. "
                  "Vérifiez le ticker et réessayez.")
         return
 
@@ -1173,7 +1174,11 @@ def main():
     info   = get_ticker_info(symbol_input)
     stats  = compute_statistics(df)
     risk   = compute_risk_metrics(df)
-    fg     = compute_fear_greed(df)
+    # Fear & Greed : toujours calculé sur 1 mois de données journalières
+    # pour être indépendant de la période/intervalle sélectionnés
+    df_fg  = load_data(symbol_input, "1mo", "1d")
+    df_fg  = compute_indicators(df_fg.copy()) if not df_fg.empty else df_fg
+    fg     = compute_fear_greed(df_fg)
 
     # ─── Company name ────────────────────────────────────────
     company_name = info.get("longName") or info.get("shortName") or symbol_input
@@ -1185,17 +1190,17 @@ def main():
     #  TAB 1 — OVERVIEW
     # ══════════════════════════════════════════════════════════
     tabs = st.tabs([
-        "🏠 Overview",
-        "📊 Fondamentaux",
-        "📉 Graphiques",
-        "🔬 Technique",
-        "📈 Statistiques",
-        "⚠️ Risque",
-        "🔀 Comparaison",
-        "📑 Export PPT",
-        "💾 Export Data",
-        "🔍 Recherche Tickers",
-        "📖 Glossaire",
+        "Overview",
+        "Fondamentaux",
+        "Graphiques",
+        "Technique",
+        "Statistiques",
+        "Risque",
+        "Comparaison",
+        "Export PPT",
+        "Export Data",
+        "Recherche Tickers",
+        "Glossaire",
     ])
 
     # ── Tab: Overview ────────────────────────────────────────
@@ -1214,7 +1219,7 @@ def main():
 
             st.markdown(f"### {company_name}  `{symbol_input}`")
             if sector:
-                st.caption(f"📁 {sector} › {industry}")
+                st.caption(f"{sector} · {industry}")
 
             col1, col2, col3, col4, col5 = st.columns(5)
             with col1:
@@ -1237,7 +1242,7 @@ def main():
             # Company description
             desc = info.get("longBusinessSummary")
             if desc:
-                with st.expander("📖 Description de la société"):
+                with st.expander("Description de la société"):
                     st.write(desc)
 
     # ── Tab: Fondamentaux ────────────────────────────────────
@@ -1252,14 +1257,14 @@ def main():
             # ── Recommandations analystes ─────────────────────
             reco = fund_data.get("recommendations")
             if reco is not None and not reco.empty:
-                st.markdown('<p class="section-title">🏦 Recommandations Analystes</p>',
+                st.markdown('<p class="section-title">Recommandations Analystes</p>',
                             unsafe_allow_html=True)
                 st.dataframe(reco.tail(20), use_container_width=True)
 
             # ── Analyst price targets ─────────────────────────
             apt = fund_data.get("analyst_price_targets")
             if apt is not None:
-                st.markdown('<p class="section-title">🎯 Objectifs de Prix Analystes</p>',
+                st.markdown('<p class="section-title">Objectifs de Prix Analystes</p>',
                             unsafe_allow_html=True)
                 if isinstance(apt, dict):
                     cols = st.columns(4)
@@ -1272,7 +1277,7 @@ def main():
             # ── Dividendes historiques ────────────────────────
             divs = fund_data.get("dividends")
             if divs is not None and not divs.empty:
-                st.markdown('<p class="section-title">💸 Historique Dividendes</p>',
+                st.markdown('<p class="section-title">Historique Dividendes</p>',
                             unsafe_allow_html=True)
                 div_df = divs.reset_index()
                 div_df.columns = ["Date", "Dividende"]
@@ -1293,21 +1298,21 @@ def main():
             # ── Institutional holders ─────────────────────────
             inst = fund_data.get("institutional_holders")
             if inst is not None and not inst.empty:
-                st.markdown('<p class="section-title">🏛️ Actionnaires Institutionnels</p>',
+                st.markdown('<p class="section-title">Actionnaires Institutionnels</p>',
                             unsafe_allow_html=True)
                 st.dataframe(inst.head(15), use_container_width=True)
 
             # ── Sustainability ────────────────────────────────
             sus = fund_data.get("sustainability")
             if sus is not None and not sus.empty:
-                st.markdown('<p class="section-title">🌱 Score ESG</p>',
+                st.markdown('<p class="section-title">Score ESG</p>',
                             unsafe_allow_html=True)
                 st.dataframe(sus, use_container_width=True)
 
             # ── Financials ────────────────────────────────────
             fin = fund_data.get("financials")
             if fin is not None and not fin.empty:
-                st.markdown('<p class="section-title">📋 États Financiers Annuels</p>',
+                st.markdown('<p class="section-title">États Financiers Annuels</p>',
                             unsafe_allow_html=True)
                 st.dataframe(fin.style.format("{:,.0f}"), use_container_width=True)
 
@@ -1316,24 +1321,22 @@ def main():
         if not show_charts:
             st.info("Section désactivée.")
         else:
-            st.markdown('<p class="section-title">📊 Graphique Principal</p>',
+            st.markdown('<p class="section-title">Graphique Principal</p>',
                         unsafe_allow_html=True)
             fig_main = create_price_chart(df, symbol_input, chart_options)
             st.plotly_chart(fig_main, use_container_width=True, key="chart_3")
 
-            col_l, col_r = st.columns(2)
-            with col_l:
-                st.markdown('<p class="section-title">📉 Drawdown</p>',
-                            unsafe_allow_html=True)
-                st.plotly_chart(create_drawdown_chart(df, symbol_input),
-                                use_container_width=True, key="chart_drawdown")
-            with col_r:
-                st.markdown('<p class="section-title">📊 Distribution des rendements</p>',
-                            unsafe_allow_html=True)
-                st.plotly_chart(create_returns_distribution(df),
-                                use_container_width=True, key="chart_x4")
+            st.markdown('<p class="section-title">Drawdown</p>',
+                        unsafe_allow_html=True)
+            st.plotly_chart(create_drawdown_chart(df, symbol_input),
+                            use_container_width=True, key="chart_drawdown")
 
-            st.markdown('<p class="section-title">🗓️ Heatmap Rendements Mensuels</p>',
+            st.markdown('<p class="section-title">Distribution des rendements</p>',
+                        unsafe_allow_html=True)
+            st.plotly_chart(create_returns_distribution(df),
+                            use_container_width=True, key="chart_x4")
+
+            st.markdown('<p class="section-title">Heatmap Rendements Mensuels</p>',
                         unsafe_allow_html=True)
             st.plotly_chart(create_monthly_returns_heatmap(df, symbol_input),
                             use_container_width=True, key="chart_x5")
@@ -1345,12 +1348,12 @@ def main():
         else:
             display_technical_analysis(df)
             st.markdown("---")
-            st.markdown('<p class="section-title">📐 Indicateurs Techniques</p>',
+            st.markdown('<p class="section-title">Indicateurs Techniques</p>',
                         unsafe_allow_html=True)
             st.plotly_chart(create_technical_charts(df), use_container_width=True, key="chart_4")
 
             # Dernières valeurs
-            st.markdown('<p class="section-title">📋 Dernières Valeurs</p>',
+            st.markdown('<p class="section-title">Dernières Valeurs</p>',
                         unsafe_allow_html=True)
             indicator_cols = [c for c in [
                 "Close", "RSI", "MACD", "MACD_Signal",
@@ -1373,7 +1376,7 @@ def main():
             fig_cum = create_cumulative_returns_chart({symbol_input: df})
             st.plotly_chart(fig_cum, use_container_width=True, key="chart_5")
 
-            st.markdown('<p class="section-title">📆 Rendements Périodiques</p>',
+            st.markdown('<p class="section-title">Rendements Périodiques</p>',
                         unsafe_allow_html=True)
             # Calculer rendements par période
             close = df["Close"]
@@ -1412,7 +1415,7 @@ def main():
         else:
             display_risk_analysis(risk)
             st.markdown("---")
-            st.markdown('<p class="section-title">📊 Rolling Volatility (30j)</p>',
+            st.markdown('<p class="section-title">Rolling Volatility (30j)</p>',
                         unsafe_allow_html=True)
             if "Daily_Return" in df.columns:
                 roll_vol = df["Daily_Return"].rolling(30).std() * np.sqrt(252) * 100
@@ -1465,7 +1468,7 @@ def main():
                     )
 
                 # Tableau comparatif
-                st.markdown('<p class="section-title">📋 Métriques Comparées</p>',
+                st.markdown('<p class="section-title">Métriques Comparées</p>',
                             unsafe_allow_html=True)
                 rows_cmp = []
                 for sym, d in dfs_compare.items():
@@ -1487,7 +1490,7 @@ def main():
 
     # ── Tab: Export ──────────────────────────────────────────
     with tabs[7]:
-        st.markdown('<p class="section-title">📑 Export PowerPoint</p>', unsafe_allow_html=True)
+        st.markdown('<p class="section-title">Export PowerPoint</p>', unsafe_allow_html=True)
         st.markdown(
             f"Générez un support de présentation complet pour **{company_name}** (`{symbol_input}`) "
             f"sur la période **{period}** ({df.index[0].strftime('%d/%m/%Y')} — {df.index[-1].strftime('%d/%m/%Y')})."
@@ -1509,7 +1512,7 @@ def main():
         st.info("⏱️ La génération prend environ 15–30 secondes (export des graphiques en images).")
 
         # ── Chemin Node.js (si non trouvé automatiquement) ───
-        with st.expander("⚙️ Chemin Node.js (si erreur introuvable)", expanded=False):
+        with st.expander("Chemin Node.js (si erreur introuvable)", expanded=False):
             st.markdown(
                 "Si Streamlit ne trouve pas Node.js automatiquement, "
                 "colle ici le chemin complet obtenu avec `where node` dans ton terminal Windows."
@@ -1520,7 +1523,7 @@ def main():
                 key="node_path_input",
             ).strip()
 
-        if st.button("🚀 Générer le PowerPoint", type="primary", key="btn_pptx"):
+        if st.button("Générer le PowerPoint", type="primary", key="btn_pptx"):
             with st.spinner("Génération du fichier PowerPoint en cours…"):
                 try:
                     pptx_bytes = generate_pptx(
@@ -1538,7 +1541,7 @@ def main():
                         chart_options=chart_options,
                         node_path_override=node_path_override or None,
                     )
-                    st.success("✅ PowerPoint généré avec succès !")
+                    st.success("PowerPoint généré avec succès.")
                     st.download_button(
                         label="⬇️ Télécharger le PowerPoint",
                         data=pptx_bytes,
@@ -1547,7 +1550,7 @@ def main():
                         key="dl_pptx",
                     )
                 except Exception as e:
-                    st.error(f"❌ Erreur lors de la génération : {e}")
+                    st.error(f"Erreur lors de la génération : {e}")
                     st.caption("Vérifiez que Node.js et pptxgenjs sont installés (`npm install -g pptxgenjs`).")
 
     # ── Tab: Export Data ─────────────────────────────────────
@@ -1555,7 +1558,7 @@ def main():
         if not show_export:
             st.info("Section désactivée.")
         else:
-            st.markdown('<p class="section-title">💾 Export des Données</p>',
+            st.markdown('<p class="section-title">Export des Données</p>',
                         unsafe_allow_html=True)
             st.markdown("Téléchargez les données brutes et indicateurs calculés.")
 
@@ -1595,13 +1598,13 @@ def main():
             )
 
             # Preview
-            st.markdown('<p class="section-title">🔍 Aperçu des données</p>',
+            st.markdown('<p class="section-title">Aperçu des données</p>',
                         unsafe_allow_html=True)
             st.dataframe(df.tail(30), use_container_width=True)
 
     # ── Tab: Recherche Tickers ───────────────────────────────
     with tabs[9]:
-        st.title("🔍 Recherche de Tickers Yahoo Finance")
+        st.title("Recherche de Tickers")
         st.caption("Tape un nom d'entreprise, un indice, une crypto ou même une approximation.")
 
         recherche = st.text_input(
@@ -1616,7 +1619,7 @@ def main():
             if not resultats:
                 st.warning("Aucun résultat. Essaie une autre orthographe.")
             else:
-                st.success(f"✅ {len(resultats)} résultat(s) trouvé(s)")
+                st.success(f"{len(resultats)} résultat(s) trouvé(s)")
                 st.divider()
                 for r in resultats:
                     c1, c2, c3 = st.columns([1.5, 4, 1.5])
@@ -1625,8 +1628,8 @@ def main():
                     c2.caption(
                         f"{TYPE_LABELS.get(r['type'], r['type'])} · {r['exchange']}"
                     )
-                    if c3.button("📋 Copier", key=f"copy_{r['symbol']}"):
-                        st.toast(f"Ticker **{r['symbol']}** — copiez-le dans le champ Ticker de la sidebar !", icon="✅")
+                    if c3.button("Copier", key=f"copy_{r['symbol']}"):
+                        st.toast(f"Ticker **{r['symbol']}** — copiez-le dans le champ Ticker de la sidebar.")
                     st.divider()
         else:
             st.markdown("""
@@ -1645,45 +1648,45 @@ def main():
             | `Gold` | `GC=F` |
             | `Euro Dollar` | `EURUSD=X` |
 
-            > 💡 **Astuce :** Une fois le ticker trouvé, copie-le et colle-le dans le champ **Ticker principal** de la barre latérale gauche.
+            > **Astuce :** Une fois le ticker trouvé, copiez-le et collez-le dans le champ **Ticker principal** de la barre latérale.
             """)
 
     # ── Tab: Glossaire ───────────────────────────────────────
     with tabs[10]:
-        st.title("📖 Glossaire Financier")
+        st.title("Glossaire Financier")
         st.caption("Définitions simples de toutes les métriques affichées dans l'application.")
 
         # Filtre de recherche dans le glossaire
-        filtre = st.text_input("🔎 Filtrer le glossaire", placeholder="Ex : P/E, Sharpe, Beta…").strip().lower()
+        filtre = st.text_input("Filtrer le glossaire", placeholder="Ex : P/E, Sharpe, Beta…").strip().lower()
 
         categories = {
-            "💰 Prix & Marché": [
+            "Prix & Marché": [
                 "Prix actuel", "Open", "High (jour)", "Low (jour)",
                 "Clôture préc.", "52-sem. High", "52-sem. Low", "Volume",
             ],
-            "🏦 Valorisation": [
+            "Valorisation": [
                 "Market Cap", "Enterprise V.", "Beta", "Float",
                 "P/E (TTM)", "P/E Forward", "PEG", "P/B", "P/S",
                 "EV/EBITDA", "EV/Rev.", "52w perf",
             ],
-            "📊 Rentabilité": [
+            "Rentabilité": [
                 "ROE", "ROA", "Marge brute", "Marge opérat.", "Marge nette",
                 "EBITDA", "Chiffre d'aff.", "Rev. Growth",
             ],
-            "💸 Dividendes": [
+            "Dividendes": [
                 "Dividend Yield", "Dividende/Act", "Payout Ratio", "Ex-Date",
             ],
-            "🏗️ Structure Financière": [
+            "Structure Financière": [
                 "Dette/Cap. prop.", "Total Cash", "Total Dette",
                 "Free Cash Flow", "Op. Cash Flow", "EPS (TTM)", "EPS Forward", "Earn. Growth",
             ],
-            "📈 Performance & Statistiques": [
+            "Performance & Statistiques": [
                 "Rend. total", "Rend. moy. annuel", "Vol. annualisée",
                 "Sharpe Ratio", "Sortino Ratio", "Max Drawdown",
                 "Jours positifs", "Asymétrie", "Kurtosis",
                 "Meilleure jour", "Pire jour",
             ],
-            "⚠️ Risque": [
+            "Risque": [
                 "VaR 95% (1j)", "VaR 99% (1j)", "CVaR 95%", "CVaR 99%", "Downside Risk",
             ],
         }
@@ -1709,14 +1712,14 @@ def main():
             st.markdown("---")
 
         st.markdown("""
-        > 📌 **Rappel important** : Ces métriques sont des outils d'aide à la décision,
+        > **Rappel important** : Ces métriques sont des outils d'aide à la décision,
         > pas des garanties. Tout investissement comporte un risque de perte en capital.
         """)
 
     # ─── Footer ──────────────────────────────────────────────
     st.markdown("---")
     st.caption(
-        "⚠️ *Apex Markets est un outil éducatif. "
+        "*Apex Markets est un outil éducatif. "
         "Les données proviennent de yfinance et peuvent être décalées. "
         "Aucune recommandation d'investissement n'est fournie.*"
     )
@@ -2284,7 +2287,7 @@ pres.writeFile({ fileName: d.out_file })
                     return c
             raise RuntimeError(
                 "Node.js introuvable automatiquement.\n\n"
-                "➡️ Dans ton terminal, tape : where node\n"
+                "Dans le terminal, tapez : where node\n"
                 "   Tu obtiendras un chemin comme C:\\Program Files\\nodejs\\node.exe\n"
                 "   Ajoute ensuite cette ligne dans app2.py avant la fonction generate_pptx :\n\n"
                 "   NODE_EXE = r\'C:\\ton\\chemin\\node.exe\'\n\n"
