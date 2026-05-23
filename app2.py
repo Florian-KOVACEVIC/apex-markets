@@ -239,7 +239,23 @@ def load_data(symbol: str, period: str, interval: str) -> pd.DataFrame:
 def get_ticker_info(symbol: str) -> dict:
     """Récupère le dictionnaire info complet du ticker."""
     try:
-        return yf.Ticker(symbol).info or {}
+        ticker = yf.Ticker(symbol)
+        info = ticker.info or {}
+        # Fallback via fast_info pour les champs manquants
+        try:
+            fi = ticker.fast_info
+            if not info.get("currency") and hasattr(fi, "currency"):
+                info["currency"] = fi.currency
+            if not info.get("longName") and not info.get("shortName"):
+                if hasattr(fi, "long_name") and fi.long_name:
+                    info["longName"] = fi.long_name
+                elif hasattr(fi, "short_name") and fi.short_name:
+                    info["shortName"] = fi.short_name
+            if not info.get("marketCap") and hasattr(fi, "market_cap"):
+                info["marketCap"] = fi.market_cap
+        except Exception:
+            pass
+        return info
     except Exception:
         return {}
 
@@ -838,16 +854,17 @@ def fmt(value, decimals=2, suffix="", prefix="", na_str="N/A") -> str:
         return str(value)
 
 
-def fmt_large(value) -> str:
+def fmt_large(value, currency: str = "") -> str:
     """Formate les grandes valeurs (milliards / millions)."""
+    sym = {"USD": "$", "EUR": "€", "GBP": "£", "JPY": "¥", "CHF": "CHF "}.get(currency, currency + " " if currency else "")
     try:
         v = float(value)
         if abs(v) >= 1e12:
-            return f"{v/1e12:.2f} T$"
+            return f"{v/1e12:.2f} T{sym}"
         if abs(v) >= 1e9:
-            return f"{v/1e9:.2f} Md$"
+            return f"{v/1e9:.2f} Md{sym}"
         if abs(v) >= 1e6:
-            return f"{v/1e6:.2f} M$"
+            return f"{v/1e6:.2f} M{sym}"
         return fmt(v)
     except Exception:
         return "N/A"
@@ -859,33 +876,36 @@ def display_fundamentals(info: dict):
         st.warning("Données fondamentales indisponibles.")
         return
 
+    cur = info.get("currency", "USD")
+    cur_sym = {"USD": "$", "EUR": "€", "GBP": "£", "JPY": "¥", "CHF": "CHF "}.get(cur, cur + " ")
+
     # ─── Section Prix ────────────────────────────────────────
     st.markdown('<p class="section-title">Données de Prix</p>', unsafe_allow_html=True)
     cols = st.columns(4)
     price_fields = [
-        ("Prix actuel",     "currentPrice",  "$"),
-        ("Open",            "open",          "$"),
-        ("High (jour)",     "dayHigh",       "$"),
-        ("Low (jour)",      "dayLow",        "$"),
-        ("Clôture préc.",   "previousClose", "$"),
-        ("52-sem. High",    "fiftyTwoWeekHigh","$"),
-        ("52-sem. Low",     "fiftyTwoWeekLow", "$"),
-        ("Volume",          "volume",        ""),
+        ("Prix actuel",     "currentPrice"),
+        ("Open",            "open"),
+        ("High (jour)",     "dayHigh"),
+        ("Low (jour)",      "dayLow"),
+        ("Clôture préc.",   "previousClose"),
+        ("52-sem. High",    "fiftyTwoWeekHigh"),
+        ("52-sem. Low",     "fiftyTwoWeekLow"),
+        ("Volume",          "volume"),
     ]
-    for i, (label, key, pfx) in enumerate(price_fields):
+    for i, (label, key) in enumerate(price_fields):
         val = info.get(key)
         with cols[i % 4]:
             if key == "volume":
                 metric_with_tooltip(label, fmt_large(val) if val else "N/A")
             else:
-                metric_with_tooltip(label, fmt(val, suffix="", prefix=pfx) if val else "N/A")
+                metric_with_tooltip(label, fmt(val, suffix="", prefix=cur_sym) if val else "N/A")
 
     # ─── Market Cap & Beta ───────────────────────────────────
     st.markdown('<p class="section-title">Capitalisation & Valorisation</p>', unsafe_allow_html=True)
     cols = st.columns(4)
     val_fields = [
-        ("Market Cap",    "marketCap",         fmt_large),
-        ("Enterprise V.", "enterpriseValue",   fmt_large),
+        ("Market Cap",    "marketCap",         lambda v: fmt_large(v, cur)),
+        ("Enterprise V.", "enterpriseValue",   lambda v: fmt_large(v, cur)),
         ("Beta",          "beta",              lambda v: fmt(v)),
         ("Float",         "floatShares",       fmt_large),
         ("P/E (TTM)",     "trailingPE",        lambda v: fmt(v, 1)),
@@ -911,8 +931,8 @@ def display_fundamentals(info: dict):
         ("Marge brute",     "grossMargins",      lambda v: fmt(v*100, 1, "%")),
         ("Marge opérat.",   "operatingMargins",  lambda v: fmt(v*100, 1, "%")),
         ("Marge nette",     "profitMargins",     lambda v: fmt(v*100, 1, "%")),
-        ("EBITDA",          "ebitda",            fmt_large),
-        ("Chiffre d'aff.",  "totalRevenue",      fmt_large),
+        ("EBITDA",          "ebitda",            lambda v: fmt_large(v, cur)),
+        ("Chiffre d'aff.",  "totalRevenue",      lambda v: fmt_large(v, cur)),
         ("Rev. Growth",     "revenueGrowth",     lambda v: fmt(v*100, 1, "%")),
     ]
     for i, (label, key, fn) in enumerate(profit_fields):
@@ -925,7 +945,7 @@ def display_fundamentals(info: dict):
     cols = st.columns(4)
     div_fields = [
         ("Dividend Yield",  "dividendYield",   lambda v: fmt(v, 2, "%")),
-        ("Dividende/Act",   "dividendRate",    lambda v: fmt(v, 2, "$")),
+        ("Dividende/Act",   "dividendRate",    lambda v: fmt(v, 2, cur_sym)),
         ("Payout Ratio",    "payoutRatio",     lambda v: fmt(v*100, 1, "%")),
         ("Ex-Date",         "exDividendDate",  lambda v: str(v) if v else "N/A"),
     ]
@@ -939,10 +959,10 @@ def display_fundamentals(info: dict):
     cols = st.columns(4)
     struct_fields = [
         ("Dette/Cap. prop.", "debtToEquity",      lambda v: fmt(v, 2)),
-        ("Total Cash",       "totalCash",          fmt_large),
-        ("Total Dette",      "totalDebt",          fmt_large),
-        ("Free Cash Flow",   "freeCashflow",       fmt_large),
-        ("Op. Cash Flow",    "operatingCashflow",  fmt_large),
+        ("Total Cash",       "totalCash",          lambda v: fmt_large(v, cur)),
+        ("Total Dette",      "totalDebt",          lambda v: fmt_large(v, cur)),
+        ("Free Cash Flow",   "freeCashflow",       lambda v: fmt_large(v, cur)),
+        ("Op. Cash Flow",    "operatingCashflow",  lambda v: fmt_large(v, cur)),
         ("EPS (TTM)",        "trailingEps",        lambda v: fmt(v, 2, "$")),
         ("EPS Forward",      "forwardEps",         lambda v: fmt(v, 2, "$")),
         ("Earn. Growth",     "earningsGrowth",     lambda v: fmt(v*100, 1, "%")),
@@ -1623,7 +1643,7 @@ def main():
                         "Max DD (%)":       fmt(s.get("max_drawdown", 0)*100, 2),
                         "VaR 95% (%)":      fmt(r.get("VaR_95", 0)*100, 2),
                         "Beta":             fmt(i.get("beta"), 2),
-                        "Market Cap":       fmt_large(i.get("marketCap")),
+                        "Market Cap":       fmt_large(i.get("marketCap"), i.get("currency", "")),
                     })
                 st.dataframe(pd.DataFrame(rows_cmp).set_index("Ticker"),
                              use_container_width=True)
@@ -2253,7 +2273,7 @@ def generate_pptx(
     row2 = [
         ("Sharpe Ratio", f"{sharpe:.3f}", ACC),
         ("Sortino Ratio", f"{sortino:.3f}", ACC),
-        ("Market Cap", fmt_large(info.get("marketCap")), ACC),
+        ("Market Cap", fmt_large(info.get("marketCap"), currency), ACC),
         ("Beta", fmt(info.get("beta"), 2), ACC2),
     ]
     for i, (lbl, val, col) in enumerate(row2):
