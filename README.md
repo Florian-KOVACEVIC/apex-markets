@@ -1,4 +1,4 @@
-# Compass Pro — Financial Analysis
+# Apex Markets — Financial Analysis
 
 **[Live Demo](https://compass-pro-florian-kovacevic.streamlit.app/)**
 
@@ -45,8 +45,8 @@ Built as a personal project to deepen my understanding of equity analysis and qu
 
 ```bash
 # Clone the repository
-git clone https://github.com/Florian-KOVACEVIC/compass-pro.git
-cd compass-pro
+git clone https://github.com/Florian-KOVACEVIC/apex-markets.git
+cd apex-markets
 
 # Create virtual environment and install dependencies
 python -m venv .venv

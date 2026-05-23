@@ -1,8 +1,8 @@
 """
 ========================================================
- Compass Pro — Application d'Analyse Financière
+ Apex Markets — Application d'Analyse Financière
 ========================================================
-Auteur  : Compass Pro
+Auteur  : Apex Markets
 Stack   : Streamlit · yfinance · Pandas · NumPy · Plotly
 Usage   : streamlit run app.py
 """
@@ -145,8 +145,8 @@ def rechercher_tickers(query: str) -> list:
 #  PAGE CONFIG
 # ─────────────────────────────────────────────
 st.set_page_config(
-    page_title="Compass Pro",
-    page_icon="📈",
+    page_title="Apex Markets",
+    page_icon="△",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -1049,7 +1049,21 @@ def render_fear_greed(score: int):
 
 def main():
     # ─── Header ──────────────────────────────────────────────
-    st.markdown('<h1 class="main-header">📈 Compass Pro</h1>', unsafe_allow_html=True)
+    st.markdown('''
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:0.2rem;">
+        <svg width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <linearGradient id="apex-grad" x1="0" y1="44" x2="44" y2="0">
+                    <stop offset="0%" stop-color="#0066ff"/>
+                    <stop offset="100%" stop-color="#00d4ff"/>
+                </linearGradient>
+            </defs>
+            <polygon points="22,4 40,38 4,38" fill="none" stroke="url(#apex-grad)" stroke-width="2.8" stroke-linejoin="round"/>
+            <polyline points="10,30 18,22 24,26 34,14" stroke="url(#apex-grad)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <circle cx="34" cy="14" r="2.2" fill="#00d4ff"/>
+        </svg>
+        <h1 class="main-header" style="margin:0;">Apex Markets</h1>
+    </div>''', unsafe_allow_html=True)
     st.markdown("*Plateforme d'analyse financière avancée — investisseurs & traders*")
 
     # ─── Sidebar ─────────────────────────────────────────────
@@ -1064,32 +1078,58 @@ def main():
 
         period = st.selectbox(
             "Période",
-            ["1mo", "3mo", "6mo", "1y", "2y", "5y", "max"],
-            index=3,
+            ["5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"],
+            index=4,
+            help="Fenêtre temporelle d'analyse. Les intervalles disponibles s'adaptent automatiquement.",
         )
         interval_map = {
-            "1mo":  ["1d", "1wk"],
-            "3mo":  ["1d", "1wk"],
+            "5d":   ["5m", "15m", "30m", "1h", "1d"],
+            "1mo":  ["30m", "1h", "1d", "1wk"],
+            "3mo":  ["1h", "1d", "1wk"],
             "6mo":  ["1d", "1wk"],
             "1y":   ["1d", "1wk", "1mo"],
             "2y":   ["1d", "1wk", "1mo"],
-            "5y":   ["1wk", "1mo"],
+            "5y":   ["1d", "1wk", "1mo"],
+            "10y":  ["1wk", "1mo"],
+            "ytd":  ["1d", "1wk", "1mo"],
             "max":  ["1wk", "1mo"],
         }
         interval = st.selectbox(
             "Intervalle",
             interval_map.get(period, ["1d"]),
+            help="Granularité des bougies. Les intervalles courts (5m–1h) ne sont disponibles que sur des périodes courtes.",
         )
 
         st.markdown("---")
         st.markdown("### 🔧 Overlays graphique")
-        show_ma20   = st.checkbox("MA20",           value=True)
-        show_ma50   = st.checkbox("MA50",           value=True)
-        show_ma100  = st.checkbox("MA100",          value=False)
-        show_ma200  = st.checkbox("MA200",          value=True)
-        show_bb     = st.checkbox("Bollinger Bands",value=False)
-        show_volume = st.checkbox("Volume",         value=True)
-        log_scale   = st.checkbox("Échelle log",    value=False)
+        show_ma20   = st.checkbox(
+            "MA20", value=False,
+            help="Moyenne mobile 20 jours — reflète la tendance court terme. Utilisée pour le swing trading et comme support/résistance dynamique.",
+        )
+        show_ma50   = st.checkbox(
+            "MA50", value=True,
+            help="Moyenne mobile 50 jours — tendance moyen terme. Référence clé des traders institutionnels. Un croisement MA50/MA200 forme un Golden Cross (haussier) ou Death Cross (baissier).",
+        )
+        show_ma100  = st.checkbox(
+            "MA100", value=False,
+            help="Moyenne mobile 100 jours — filtre intermédiaire entre le moyen et le long terme. Moins standard que la MA50 ou MA200.",
+        )
+        show_ma200  = st.checkbox(
+            "MA200", value=False,
+            help="Moyenne mobile 200 jours — tendance long terme. Un actif au-dessus de sa MA200 est généralement considéré en tendance haussière structurelle.",
+        )
+        show_bb     = st.checkbox(
+            "Bollinger Bands", value=False,
+            help="Bandes de Bollinger (MA20 ± 2σ) — mesurent la volatilité. Un prix touchant la bande haute/basse peut signaler un excès ou une cassure de volatilité.",
+        )
+        show_volume = st.checkbox(
+            "Volume", value=True,
+            help="Nombre de titres échangés par bougie. Un mouvement de prix confirmé par un volume élevé est plus fiable.",
+        )
+        log_scale   = st.checkbox(
+            "Échelle log", value=False,
+            help="Échelle logarithmique — utile sur longue période pour visualiser les rendements en % plutôt qu'en valeur absolue.",
+        )
 
         chart_options = {
             "MA20": show_ma20, "MA50": show_ma50,
@@ -1502,7 +1542,7 @@ def main():
                     st.download_button(
                         label="⬇️ Télécharger le PowerPoint",
                         data=pptx_bytes,
-                        file_name=f"{symbol_input}_Compass_Pro_{period}.pptx",
+                        file_name=f"{symbol_input}_Apex_Markets_{period}.pptx",
                         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
                         key="dl_pptx",
                     )
@@ -1676,7 +1716,7 @@ def main():
     # ─── Footer ──────────────────────────────────────────────
     st.markdown("---")
     st.caption(
-        "⚠️ *Compass Pro est un outil éducatif. "
+        "⚠️ *Apex Markets est un outil éducatif. "
         "Les données proviennent de yfinance et peuvent être décalées. "
         "Aucune recommandation d'investissement n'est fournie.*"
     )
@@ -2046,7 +2086,7 @@ const C = {
 
 const pres = new pptxgen();
 pres.layout = 'LAYOUT_16x9';
-pres.title  = 'Compass Pro — ' + d.symbol;
+pres.title  = 'Apex Markets — ' + d.symbol;
 
 // ── Helpers ──────────────────────────────────────────────
 function addCard(s, x, y, w, h, label, value, color) {
@@ -2057,7 +2097,7 @@ function addCard(s, x, y, w, h, label, value, color) {
 }
 
 function footer(s) {
-  s.addText('Compass Pro — ' + d.symbol + ' — ' + d.date_range,
+  s.addText('Apex Markets — ' + d.symbol + ' — ' + d.date_range,
     { x: 0.3, y: 5.35, w: 9.4, h: 0.2, fontSize: 8, color: C.muted, margin: 0 });
 }
 
@@ -2079,7 +2119,7 @@ function addChartSlide(title, key) {
   s.addShape(pres.shapes.RECTANGLE, { x: 0, y: 5.545, w: 10, h: 0.08, fill: { color: C.acc }, line: { color: C.acc } });
   s.addText(d.title_slide, { x: 0.5, y: 1.7, w: 9, h: 1.3, fontSize: 34, bold: true, color: C.acc2, align: 'center' });
   s.addText(d.subtitle,    { x: 0.5, y: 3.1, w: 9, h: 0.7, fontSize: 14, color: C.muted, align: 'center' });
-  s.addText('Compass Pro',  { x: 0.5, y: 5.0, w: 9, h: 0.4, fontSize: 10, color: C.muted, align: 'center' });
+  s.addText('Apex Markets',  { x: 0.5, y: 5.0, w: 9, h: 0.4, fontSize: 10, color: C.muted, align: 'center' });
 }
 
 // ─── SLIDE 2 : KPIs ───────────────────────────────────────
@@ -2189,12 +2229,12 @@ addChartSlide('Rendements Mensuels', 'monthly');
   s.addShape(pres.shapes.RECTANGLE, { x: 0, y: 0, w: 0.12, h: 5.625, fill: { color: C.acc }, line: { color: C.acc } });
   s.addText('Avertissement', { x: 0.4, y: 1.0, w: 9.2, h: 0.7, fontSize: 22, bold: true, color: C.ora });
   s.addText([
-    { text: 'Ce document est genere a titre educatif uniquement par Compass Pro.', options: { breakLine: true } },
+    { text: 'Ce document est genere a titre educatif uniquement par Apex Markets.', options: { breakLine: true } },
     { text: 'Les donnees proviennent de yfinance et peuvent etre decalees ou incompletes.', options: { breakLine: true } },
     { text: "Aucune information contenue dans ce support ne constitue une recommandation d'investissement.", options: { breakLine: true } },
     { text: 'Tout investissement comporte un risque de perte en capital.' }
   ], { x: 0.4, y: 1.9, w: 9.2, h: 2.2, fontSize: 13, color: C.muted });
-  s.addText('Compass Pro — Generated ' + new Date().toLocaleDateString('fr-FR'),
+  s.addText('Apex Markets — Generated ' + new Date().toLocaleDateString('fr-FR'),
     { x: 0.4, y: 4.8, w: 9.2, h: 0.35, fontSize: 10, color: C.muted, align: 'center' });
 }
 
