@@ -450,13 +450,29 @@ def create_price_chart(df: pd.DataFrame, symbol: str, options: dict) -> go.Figur
                 line=dict(color="#ff9800", width=1.2),
             ), row=2, col=1)
 
+    # ── Affichage style TradingView : dernières ~120 bougies visibles,
+    #    scroll / zoom pour voir le reste ──
+    max_visible = 120
+    if len(df) > max_visible:
+        x_start = df.index[-max_visible]
+        x_end   = df.index[-1]
+    else:
+        x_start = df.index[0]
+        x_end   = df.index[-1]
+
     fig.update_layout(
         title=dict(text=f"<b>{symbol}</b> — Analyse du Prix", font_size=16),
         paper_bgcolor=CHART_BG, plot_bgcolor=CHART_BG,
-        xaxis_rangeslider_visible=False,
+        xaxis_rangeslider_visible=True,
+        xaxis_rangeslider=dict(
+            bgcolor="#1a1c2e",
+            bordercolor="#2a2d3e",
+            thickness=0.06,
+        ),
+        xaxis_range=[x_start, x_end],
         legend=dict(bgcolor="rgba(0,0,0,0.4)", font_color="#ccc"),
         hovermode="x unified",
-        height=560,
+        height=600,
         margin=dict(l=10, r=10, t=40, b=10),
     )
     if options.get("log_scale"):
@@ -1077,29 +1093,54 @@ def main():
             help="Ex : AAPL, TSLA, BNP.PA, ^FCHI, ^GSPC",
         ).upper().strip()
 
-        period = st.selectbox(
-            "Période",
-            ["5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"],
-            index=4,
+        # ── Périodes (labels FR → codes yfinance) ──
+        PERIOD_OPTIONS = [
+            ("1 semaine",  "5d"),
+            ("1 mois",     "1mo"),
+            ("3 mois",     "3mo"),
+            ("6 mois",     "6mo"),
+            ("1 an",       "1y"),
+            ("2 ans",      "2y"),
+            ("5 ans",      "5y"),
+            ("10 ans",     "10y"),
+            ("Depuis le 1er janv.", "ytd"),
+            ("Maximum",    "max"),
+        ]
+        period_labels = [p[0] for p in PERIOD_OPTIONS]
+        period_codes  = {p[0]: p[1] for p in PERIOD_OPTIONS}
+        period_label  = st.selectbox(
+            "Période", period_labels, index=4,
             help="Fenêtre temporelle d'analyse. Les intervalles disponibles s'adaptent automatiquement.",
         )
+        period = period_codes[period_label]
+
+        # ── Intervalles (labels FR → codes yfinance) ──
+        INTERVAL_LABELS = {
+            "1m":  "1 minute",   "5m":  "5 minutes",
+            "15m": "15 minutes", "30m": "30 minutes",
+            "1h":  "1 heure",    "1d":  "1 jour",
+            "1wk": "1 semaine",  "1mo": "1 mois",
+        }
         interval_map = {
             "5d":   ["1m", "5m", "15m", "30m", "1h", "1d"],
-            "1mo":  ["5m", "15m", "30m", "1h", "1d", "1wk"],
-            "3mo":  ["15m", "30m", "1h", "1d", "1wk"],
-            "6mo":  ["1h", "1d", "1wk"],
-            "1y":   ["1h", "1d", "1wk", "1mo"],
+            "1mo":  ["15m", "30m", "1h", "1d", "1wk"],
+            "3mo":  ["1h", "1d", "1wk"],
+            "6mo":  ["1d", "1wk"],
+            "1y":   ["1d", "1wk", "1mo"],
             "2y":   ["1d", "1wk", "1mo"],
             "5y":   ["1d", "1wk", "1mo"],
-            "10y":  ["1d", "1wk", "1mo"],
+            "10y":  ["1wk", "1mo"],
             "ytd":  ["1d", "1wk", "1mo"],
             "max":  ["1wk", "1mo"],
         }
-        interval = st.selectbox(
-            "Intervalle",
-            interval_map.get(period, ["1d"]),
-            help="Granularité des bougies. Les intervalles courts (5m–1h) ne sont disponibles que sur des périodes courtes.",
+        available_codes  = interval_map.get(period, ["1d"])
+        available_labels = [INTERVAL_LABELS[c] for c in available_codes]
+        interval_label_to_code = {INTERVAL_LABELS[c]: c for c in available_codes}
+        interval_label = st.selectbox(
+            "Intervalle", available_labels,
+            help="Granularité des bougies. Les intervalles courts ne sont disponibles que sur des périodes courtes.",
         )
+        interval = interval_label_to_code[interval_label]
 
         st.markdown("---")
         st.markdown("### Overlays graphique")
