@@ -689,7 +689,7 @@ def create_returns_distribution(df: pd.DataFrame) -> go.Figure:
             x_val = mean_r + sign * k * std_r
             fig.add_vline(x=x_val, line_color="#ab47bc",
                           line_dash="dot", opacity=alpha,
-                          annotation_text=f"{sign:+d}σ",
+                          annotation_text=f"{sign*k:+d}σ",
                           annotation_font_color="#ab47bc")
 
     # Annotation skewness / kurtosis
@@ -1381,7 +1381,21 @@ def main():
             desc = info.get("longBusinessSummary")
             if desc:
                 with st.expander("Description de la société"):
-                    st.write(desc)
+                    # Découper en paragraphes pour aérer le texte
+                    sentences = desc.replace(". ", ".\n\n").split("\n\n")
+                    # Regrouper par blocs de ~2-3 phrases
+                    paragraphs = []
+                    buf = []
+                    for s in sentences:
+                        buf.append(s.strip())
+                        if len(buf) >= 3:
+                            paragraphs.append(" ".join(buf))
+                            buf = []
+                    if buf:
+                        paragraphs.append(" ".join(buf))
+                    for p in paragraphs:
+                        st.markdown(f"<p style='line-height:1.7;color:#c5cae9;font-size:0.9rem;'>{p}</p>",
+                                    unsafe_allow_html=True)
 
     # ── Tab: Fondamentaux ────────────────────────────────────
     with tabs[1]:
@@ -1868,9 +1882,12 @@ def main():
     # ─── Footer ──────────────────────────────────────────────
     st.markdown("---")
     st.caption(
-        "*Apex Markets est un outil éducatif. "
-        "Les données proviennent de yfinance et peuvent être décalées. "
-        "Aucune recommandation d'investissement n'est fournie.*"
+        "*Apex Markets est un projet personnel à vocation pédagogique et ne constitue en aucun cas "
+        "un conseil en investissement, une recommandation d'achat ou de vente, ni une sollicitation "
+        "d'opérations sur instruments financiers. Les données de marché sont fournies par Yahoo Finance "
+        "via la bibliothèque open-source yfinance ; elles peuvent être différées, incomplètes ou inexactes. "
+        "L'auteur décline toute responsabilité quant aux décisions prises sur la base des informations "
+        "affichées. Tout investissement comporte un risque de perte en capital.*"
     )
 
 
