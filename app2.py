@@ -368,8 +368,12 @@ def compute_statistics(df: pd.DataFrame) -> dict:
     stats["mean_annual_return"]   = ret.mean() * trading_days
     stats["volatility_daily"]     = ret.std()
     stats["volatility_annual"]    = ret.std() * np.sqrt(trading_days)
-    stats["sharpe_ratio"]         = (ret.mean() / ret.std()) * np.sqrt(trading_days) if ret.std() > 0 else 0
-    stats["sortino_ratio"]        = (ret.mean() / ret[ret < 0].std()) * np.sqrt(trading_days) if ret[ret < 0].std() > 0 else 0
+    # Taux sans risque annualisé (US 10Y ~4.3%, ajustable)
+    rf_annual = 0.043
+    rf_daily  = rf_annual / trading_days
+    excess    = ret - rf_daily
+    stats["sharpe_ratio"]         = (excess.mean() / ret.std()) * np.sqrt(trading_days) if ret.std() > 0 else 0
+    stats["sortino_ratio"]        = (excess.mean() / ret[ret < 0].std()) * np.sqrt(trading_days) if ret[ret < 0].std() > 0 else 0
     stats["max_drawdown"]         = df["Drawdown"].min() if "Drawdown" in df.columns else np.nan
     stats["skewness"]             = ret.skew()
     stats["kurtosis"]             = ret.kurt()
@@ -1086,44 +1090,20 @@ def display_risk_analysis(risk: dict):
 #  SECTION 6 — FEAR & GREED (proxy simplifié)
 # ══════════════════════════════════════════════════════════════
 
-def compute_fear_greed(df: pd.DataFrame) -> int:
+@st.cache_data(ttl=600, show_spinner=False)
+def fetch_fear_greed_cnn() -> int:
     """
-    Indicateur Fear & Greed simplifié (0–100) basé sur :
-    RSI, BB position, momentum 20j, vol vs vol MA.
+    Récupère l'indicateur Fear & Greed officiel de CNN Business.
+    Fallback à 50 (neutre) en cas d'erreur.
     """
-    if df.empty or len(df) < 20:
+    try:
+        url = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode())
+        return int(round(data["fear_and_greed"]["score"]))
+    except Exception:
         return 50
-
-    score = 50
-    last  = df.iloc[-1]
-
-    # RSI contribution (±15)
-    if "RSI" in df.columns:
-        rsi = last.get("RSI", 50)
-        score += (rsi - 50) * 0.3
-
-    # Bollinger position (±10)
-    if "BB_Upper" in df.columns:
-        rng = last["BB_Upper"] - last["BB_Lower"]
-        if rng > 0:
-            pos   = (last["Close"] - last["BB_Lower"]) / rng  # 0..1
-            score += (pos - 0.5) * 20
-
-    # Momentum 20j (±10)
-    if len(df) >= 20:
-        momentum = df["Close"].iloc[-1] / df["Close"].iloc[-20] - 1
-        score += momentum * 50
-
-    # Volume spike (±5)
-    if "Volume" in df.columns and "Vol_MA20" in df.columns:
-        if last["Vol_MA20"] > 0:
-            vol_ratio = last["Volume"] / last["Vol_MA20"]
-            if last["Close"] > df["Close"].iloc[-2]:
-                score += min(5, (vol_ratio - 1) * 5)
-            else:
-                score -= min(5, (vol_ratio - 1) * 5)
-
-    return int(np.clip(score, 0, 100))
 
 
 def render_fear_greed(score: int):
@@ -1142,7 +1122,7 @@ def render_fear_greed(score: int):
     st.markdown(f"""
     <div style="background:#1e2130;border-radius:8px;padding:0.6rem 0.8rem;text-align:center;">
         <div style="font-size:0.7rem;color:#8b92a5;margin-bottom:0.15rem;letter-spacing:0.03em;">
-            Fear & Greed
+            Fear & Greed (CNN)
         </div>
         <div style="display:flex;align-items:baseline;justify-content:center;gap:6px;">
             <span style="font-size:1.6rem;font-weight:800;color:{color};line-height:1;">{score}</span>
@@ -1311,11 +1291,8 @@ def main():
     info   = get_ticker_info(symbol_input)
     stats  = compute_statistics(df)
     risk   = compute_risk_metrics(df)
-    # Fear & Greed : toujours calculé sur 1 mois de données journalières
-    # pour être indépendant de la période/intervalle sélectionnés
-    df_fg  = load_data(symbol_input, "1mo", "1d")
-    df_fg  = compute_indicators(df_fg.copy()) if not df_fg.empty else df_fg
-    fg     = compute_fear_greed(df_fg)
+    # Fear & Greed : indicateur CNN officiel (indépendant du ticker)
+    fg     = fetch_fear_greed_cnn()
 
     # ─── Company name ────────────────────────────────────────
     company_name = info.get("longName") or info.get("shortName") or symbol_input
@@ -1672,20 +1649,6 @@ def main():
         - Slide de disclaimer
         """)
 
-        st.info("⏱️ La génération prend environ 15–30 secondes (export des graphiques en images).")
-
-        # ── Chemin Node.js (si non trouvé automatiquement) ───
-        with st.expander("Chemin Node.js (si erreur introuvable)", expanded=False):
-            st.markdown(
-                "Si Streamlit ne trouve pas Node.js automatiquement, "
-                "colle ici le chemin complet obtenu avec `where node` dans ton terminal Windows."
-            )
-            node_path_override = st.text_input(
-                "Chemin vers node.exe",
-                placeholder=r"Ex : C:\Program Files\nodejs\node.exe",
-                key="node_path_input",
-            ).strip()
-
         if st.button("Générer le PowerPoint", type="primary", key="btn_pptx"):
             with st.spinner("Génération du fichier PowerPoint en cours…"):
                 try:
@@ -1702,11 +1665,10 @@ def main():
                         risk=risk,
                         fg=fg,
                         chart_options=chart_options,
-                        node_path_override=node_path_override or None,
                     )
                     st.success("PowerPoint généré avec succès.")
                     st.download_button(
-                        label="⬇️ Télécharger le PowerPoint",
+                        label="Télécharger le PowerPoint",
                         data=pptx_bytes,
                         file_name=f"{symbol_input}_Apex_Markets_{period}.pptx",
                         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
@@ -1714,7 +1676,6 @@ def main():
                     )
                 except Exception as e:
                     st.error(f"Erreur lors de la génération : {e}")
-                    st.caption("Vérifiez que Node.js et pptxgenjs sont installés (`npm install -g pptxgenjs`).")
 
     # ── Tab: Export Data ─────────────────────────────────────
     with tabs[8]:
@@ -2152,17 +2113,87 @@ def generate_pptx(
     risk: dict,
     fg: int,
     chart_options: dict,
-    node_path_override: str = None,
+    **kwargs,
 ) -> bytes:
     """
-    Génère un fichier PPTX complet pour le ticker sélectionné.
-    Les données sont passées en JSON à Node.js — aucune interpolation dans le template JS.
+    Génère un fichier PPTX complet via python-pptx (pur Python, compatible Streamlit Cloud).
     Retourne les bytes du fichier .pptx.
     """
-    import subprocess, tempfile, os, json, base64
+    from pptx import Presentation
+    from pptx.util import Inches, Pt, Emu
+    from pptx.dml.color import RGBColor
+    from pptx.enum.text import PP_ALIGN
+    import base64 as _b64
 
-    # ── Préparer les images des graphiques (matplotlib, sans kaleido) ──
-    charts_b64 = {}
+    # ── Couleurs ──
+    BG      = RGBColor(0x0E, 0x11, 0x17)
+    CARD    = RGBColor(0x1E, 0x21, 0x30)
+    ACC     = RGBColor(0x00, 0x66, 0xFF)
+    ACC2    = RGBColor(0x00, 0xD4, 0xFF)
+    UP      = RGBColor(0x00, 0xE6, 0x76)
+    DOWN    = RGBColor(0xFF, 0x52, 0x52)
+    ORA     = RGBColor(0xFF, 0x98, 0x00)
+    WHITE   = RGBColor(0xFF, 0xFF, 0xFF)
+    MUTED   = RGBColor(0x8B, 0x92, 0xA5)
+
+    prs = Presentation()
+    prs.slide_width  = Inches(10)
+    prs.slide_height = Inches(5.625)
+    blank = prs.slide_layouts[6]  # blank layout
+
+    def _add_text(slide, text, left, top, width, height,
+                  font_size=12, color=WHITE, bold=False, align=PP_ALIGN.LEFT):
+        txBox = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(width), Inches(height))
+        tf = txBox.text_frame
+        tf.word_wrap = True
+        p = tf.paragraphs[0]
+        p.text = text
+        p.font.size = Pt(font_size)
+        p.font.color.rgb = color
+        p.font.bold = bold
+        p.alignment = align
+
+    def _add_rect(slide, left, top, width, height, fill_color):
+        from pptx.enum.shapes import MSO_SHAPE
+        shape = slide.shapes.add_shape(
+            MSO_SHAPE.RECTANGLE, Inches(left), Inches(top), Inches(width), Inches(height))
+        shape.fill.solid()
+        shape.fill.fore_color.rgb = fill_color
+        shape.line.fill.background()
+
+    def _set_bg(slide, color):
+        bg = slide.background
+        fill = bg.fill
+        fill.solid()
+        fill.fore_color.rgb = color
+
+    def _add_card(slide, x, y, w, h, label, value, accent_color):
+        _add_rect(slide, x, y, w, h, CARD)
+        _add_rect(slide, x, y, 0.05, h, accent_color)
+        _add_text(slide, label, x+0.12, y+0.05, w-0.2, 0.22, font_size=8, color=MUTED)
+        _add_text(slide, value, x+0.12, y+0.28, w-0.2, 0.38, font_size=13, color=WHITE, bold=True)
+
+    def _footer(slide):
+        dr = f"{df.index[0].strftime('%d/%m/%Y')} — {df.index[-1].strftime('%d/%m/%Y')}"
+        _add_text(slide, f"Apex Markets — {symbol} — {dr}",
+                  0.3, 5.35, 9.4, 0.2, font_size=8, color=MUTED)
+
+    def _add_chart_slide(title, img_b64):
+        if not img_b64:
+            return
+        s = prs.slides.add_slide(blank)
+        _set_bg(s, BG)
+        _add_rect(s, 0, 0, 10, 0.55, CARD)
+        _add_text(s, title, 0.3, 0.1, 9.4, 0.35, font_size=14, bold=True, color=ACC2)
+        # Décoder l'image base64
+        header, data = img_b64.split(",", 1)
+        img_bytes = _b64.b64decode(data)
+        img_stream = io.BytesIO(img_bytes)
+        s.shapes.add_picture(img_stream, Inches(0.15), Inches(0.6), Inches(9.7), Inches(4.85))
+        _footer(s)
+
+    # ── Préparer les images ──
+    charts = {}
     for key, fn in {
         "price":   lambda: mpl_price_chart(df, symbol),
         "tech":    lambda: mpl_indicators_chart(df),
@@ -2171,11 +2202,11 @@ def generate_pptx(
         "monthly": lambda: mpl_monthly_heatmap(df, symbol),
     }.items():
         try:
-            charts_b64[key] = fn()
+            charts[key] = fn()
         except Exception:
-            charts_b64[key] = None
+            charts[key] = None
 
-    # ── Calcul des valeurs ───────────────────────────────────
+    # ── Calculs ──
     last_close  = float(df["Close"].iloc[-1])
     prev_close  = float(df["Close"].iloc[-2]) if len(df) > 1 else last_close
     day_chg_pct = (last_close - prev_close) / prev_close * 100 if prev_close else 0.0
@@ -2184,378 +2215,131 @@ def generate_pptx(
     sharpe      = stats.get("sharpe_ratio", 0)
     sortino     = stats.get("sortino_ratio", 0)
     max_dd      = stats.get("max_drawdown", 0) * 100
-    skewness    = stats.get("skewness", 0)
+    skewness_v  = stats.get("skewness", 0)
     kurtosis_v  = stats.get("kurtosis", 0)
     pos_days    = stats.get("positive_days_pct", 0)
     var95       = risk.get("VaR_95", 0) * 100
     var99       = risk.get("VaR_99", 0) * 100
     cvar95      = risk.get("CVaR_95", 0) * 100
     downside    = risk.get("downside_dev", 0) * 100
-    date_range  = f"{df.index[0].strftime('%d/%m/%Y')} - {df.index[-1].strftime('%d/%m/%Y')}"
 
-    # ── Sérialiser toutes les données en JSON ────────────────
-    payload = {
-        "charts": charts_b64,
-        "symbol": symbol,
-        "company": company_name,
-        "sector": sector or "",
-        "industry": industry or "",
-        "period": period,
-        "date_range": date_range,
-        "currency": currency,
-        "last_close": f"{last_close:.2f}",
-        "day_chg_pct": f"{day_chg_pct:+.2f}%",
-        "day_chg_color": "00E676" if day_chg_pct >= 0 else "FF5252",
-        "total_ret": f"{total_ret:+.2f}%",
-        "total_ret_color": "00E676" if total_ret >= 0 else "FF5252",
-        "vol_ann": f"{vol_ann:.2f}%",
-        "max_dd": f"{max_dd:.2f}%",
-        "sharpe": f"{sharpe:.3f}",
-        "sortino": f"{sortino:.3f}",
-        "mkt_cap": fmt_large(info.get("marketCap")),
-        "beta": fmt(info.get("beta"), 2),
-        "pe_ttm": fmt(info.get("trailingPE"), 1),
-        "div_yield": fmt(info.get("dividendYield"), 2, "%"),
-        "roe": fmt(info.get("returnOnEquity", 0) * 100 if info.get("returnOnEquity") else None, 1, "%"),
-        "marge_nette": fmt(info.get("profitMargins", 0) * 100 if info.get("profitMargins") else None, 1, "%"),
-        "revenue": fmt_large(info.get("totalRevenue")),
-        "fg": int(fg),
-        "pos_days": f"{pos_days:.1f}%",
-        "skewness": f"{skewness:.3f}",
-        "kurtosis": f"{kurtosis_v:.3f}",
-        "var95": f"{var95:.2f}%",
-        "var99": f"{var99:.2f}%",
-        "cvar95": f"{cvar95:.2f}%",
-        "downside": f"{downside:.2f}%",
-        "abs_var95": f"{abs(var95):.2f}%",
-        "abs_cvar95": f"{abs(cvar95):.2f}%",
-        "sector_short": (sector or "")[:25] or "—",
-        "subtitle": f"{sector}{' · ' + industry if industry else ''} · Analyse financière · Période : {period} ({date_range})",
-        "title_slide": f"{symbol} — {company_name}",
-    }
+    # ── SLIDE 1 : Titre ──
+    s = prs.slides.add_slide(blank)
+    _set_bg(s, BG)
+    _add_rect(s, 0, 0, 10, 0.08, ACC)
+    _add_rect(s, 0, 5.545, 10, 0.08, ACC)
+    subtitle = f"{sector}{' · ' + industry if industry else ''} · Période : {period}"
+    _add_text(s, f"{symbol} — {company_name}", 0.5, 1.7, 9, 1.3,
+              font_size=34, bold=True, color=ACC2, align=PP_ALIGN.CENTER)
+    _add_text(s, subtitle, 0.5, 3.1, 9, 0.7,
+              font_size=14, color=MUTED, align=PP_ALIGN.CENTER)
+    _add_text(s, "Apex Markets", 0.5, 5.0, 9, 0.4,
+              font_size=10, color=MUTED, align=PP_ALIGN.CENTER)
 
-    # ── Script Node.js — AUCUNE interpolation Python dedans ──
-    node_script = r"""
-'use strict';
-const pptxgen = require('pptxgenjs');
-const d = JSON.parse(process.argv[2]);
+    # ── SLIDE 2 : KPIs ──
+    s = prs.slides.add_slide(blank)
+    _set_bg(s, BG)
+    _add_rect(s, 0, 0, 10, 0.55, CARD)
+    _add_text(s, f"Indicateurs Clés — {symbol}", 0.3, 0.1, 9.4, 0.35,
+              font_size=14, bold=True, color=ACC2)
+    row1 = [
+        ("Prix actuel", f"{last_close:.2f} {currency}  ({day_chg_pct:+.2f}%)", UP if day_chg_pct >= 0 else DOWN),
+        ("Perf. période", f"{total_ret:+.2f}%", UP if total_ret >= 0 else DOWN),
+        ("Vol. annualisée", f"{vol_ann:.2f}%", ORA),
+        ("Max Drawdown", f"{max_dd:.2f}%", DOWN),
+    ]
+    for i, (lbl, val, col) in enumerate(row1):
+        _add_card(s, 0.2 + i*2.4, 0.65, 2.2, 0.85, lbl, val, col)
+    row2 = [
+        ("Sharpe Ratio", f"{sharpe:.3f}", ACC),
+        ("Sortino Ratio", f"{sortino:.3f}", ACC),
+        ("Market Cap", fmt_large(info.get("marketCap")), ACC),
+        ("Beta", fmt(info.get("beta"), 2), ACC2),
+    ]
+    for i, (lbl, val, col) in enumerate(row2):
+        _add_card(s, 0.2 + i*2.4, 1.6, 2.2, 0.85, lbl, val, col)
+    row3 = [
+        ("P/E (TTM)", fmt(info.get("trailingPE"), 1), ACC2),
+        ("Div. Yield", fmt(info.get("dividendYield"), 2, "%"), UP),
+        ("ROE", fmt(info.get("returnOnEquity", 0)*100 if info.get("returnOnEquity") else None, 1, "%"), UP),
+        ("Marge nette", fmt(info.get("profitMargins", 0)*100 if info.get("profitMargins") else None, 1, "%"), UP),
+    ]
+    for i, (lbl, val, col) in enumerate(row3):
+        _add_card(s, 0.2 + i*2.4, 2.55, 2.2, 0.85, lbl, val, col)
+    # Fear & Greed
+    fg_color = DOWN if fg < 25 else (ORA if fg < 45 else (RGBColor(0xF9,0xA8,0x25) if fg < 55 else (UP if fg < 75 else UP)))
+    fg_label = "Peur extrême" if fg < 25 else ("Peur" if fg < 45 else ("Neutre" if fg < 55 else ("Avidité" if fg < 75 else "Avidité extrême")))
+    _add_rect(s, 0.2, 3.55, 9.6, 0.85, CARD)
+    _add_text(s, f"Fear & Greed (CNN) : {fg}/100 — {fg_label}", 0.3, 3.6, 9, 0.35,
+              font_size=12, bold=True, color=fg_color)
+    _add_rect(s, 0.3, 4.0, 9.4, 0.15, RGBColor(0x2A, 0x2D, 0x3E))
+    _add_rect(s, 0.3, 4.0, 9.4 * fg / 100, 0.15, fg_color)
+    _footer(s)
 
-const C = {
-  bg:     '0E1117',
-  card:   '1E2130',
-  acc:    '0066FF',
-  acc2:   '00D4FF',
-  up:     '00E676',
-  down:   'FF5252',
-  ora:    'FF9800',
-  txt:    'FFFFFF',
-  muted:  '8B92A5',
-  purple: 'AB47BC',
-};
+    # ── SLIDES 3-4 : Graphiques ──
+    _add_chart_slide("Graphique de Prix & Volume", charts.get("price"))
+    _add_chart_slide("Indicateurs Techniques — RSI · MACD · Stochastique · OBV", charts.get("tech"))
 
-const pres = new pptxgen();
-pres.layout = 'LAYOUT_16x9';
-pres.title  = 'Apex Markets — ' + d.symbol;
+    # ── SLIDE 5 : Stats ──
+    s = prs.slides.add_slide(blank)
+    _set_bg(s, BG)
+    _add_rect(s, 0, 0, 10, 0.55, CARD)
+    _add_text(s, "Performance & Statistiques", 0.3, 0.1, 9.4, 0.35,
+              font_size=14, bold=True, color=ACC2)
+    perf_data = [
+        ("Rend. total", f"{total_ret:+.2f}%"), ("Vol. annualisée", f"{vol_ann:.2f}%"),
+        ("Sharpe Ratio", f"{sharpe:.3f}"), ("Sortino Ratio", f"{sortino:.3f}"),
+        ("Max Drawdown", f"{max_dd:.2f}%"), ("Jours positifs", f"{pos_days:.1f}%"),
+        ("Skewness", f"{skewness_v:.3f}"), ("Kurtosis", f"{kurtosis_v:.3f}"),
+    ]
+    for i, (lbl, val) in enumerate(perf_data):
+        _add_card(s, 0.2 + (i % 4) * 2.4, 0.65 + (i // 4) * 1.05, 2.2, 0.9, lbl, val, ACC)
+    _footer(s)
 
-// ── Helpers ──────────────────────────────────────────────
-function addCard(s, x, y, w, h, label, value, color) {
-  s.addShape(pres.shapes.RECTANGLE, { x, y, w, h, fill: { color: C.card }, line: { color: C.card } });
-  s.addShape(pres.shapes.RECTANGLE, { x, y, w: 0.05, h, fill: { color: color }, line: { color: color } });
-  s.addText(label, { x: x+0.12, y: y+0.07, w: w-0.2, h: 0.22, fontSize: 8,  color: C.muted, bold: false, margin: 0 });
-  s.addText(value, { x: x+0.12, y: y+0.28, w: w-0.2, h: 0.38, fontSize: 13, color: C.txt,   bold: true,  margin: 0 });
-}
+    # ── SLIDES 6-8 : Graphiques ──
+    _add_chart_slide("Distribution des Rendements — vs Loi Normale", charts.get("dist"))
+    _add_chart_slide("Drawdown Historique", charts.get("dd"))
+    _add_chart_slide("Rendements Mensuels", charts.get("monthly"))
 
-function footer(s) {
-  s.addText('Apex Markets — ' + d.symbol + ' — ' + d.date_range,
-    { x: 0.3, y: 5.35, w: 9.4, h: 0.2, fontSize: 8, color: C.muted, margin: 0 });
-}
+    # ── SLIDE 9 : Risque ──
+    s = prs.slides.add_slide(blank)
+    _set_bg(s, BG)
+    _add_rect(s, 0, 0, 10, 0.55, CARD)
+    _add_text(s, "Analyse de Risque", 0.3, 0.1, 9.4, 0.35,
+              font_size=14, bold=True, color=ACC2)
+    risk_data = [
+        ("VaR 95% (1j)", f"{var95:.2f}%"), ("VaR 99% (1j)", f"{var99:.2f}%"),
+        ("CVaR 95%", f"{cvar95:.2f}%"), ("Downside Risk", f"{downside:.2f}%"),
+    ]
+    for i, (lbl, val) in enumerate(risk_data):
+        _add_card(s, 0.2 + i * 2.4, 0.7, 2.2, 0.9, lbl, val, DOWN)
+    _add_rect(s, 0.2, 1.8, 9.6, 1.3, CARD)
+    _add_rect(s, 0.2, 1.8, 0.06, 1.3, ORA)
+    _add_text(s,
+        f"Avec un niveau de confiance de 95%, la perte maximale attendue sur une journée est de "
+        f"{abs(var95):.2f}%. Dans les 5% de pires cas (CVaR 95%), la perte moyenne serait de {abs(cvar95):.2f}%.",
+        0.4, 1.88, 9.2, 1.1, font_size=12, color=WHITE)
+    _footer(s)
 
-function addChartSlide(title, key) {
-  if (!d.charts[key]) return;
-  const s = pres.addSlide();
-  s.background = { color: C.bg };
-  s.addShape(pres.shapes.RECTANGLE, { x: 0, y: 0, w: 10, h: 0.55, fill: { color: C.card }, line: { color: C.card } });
-  s.addText(title, { x: 0.3, y: 0.1, w: 9.4, h: 0.35, fontSize: 14, bold: true, color: C.acc2, margin: 0 });
-  s.addImage({ data: d.charts[key], x: 0.15, y: 0.6, w: 9.7, h: 4.85 });
-  footer(s);
-}
+    # ── SLIDE 10 : Disclaimer ──
+    s = prs.slides.add_slide(blank)
+    _set_bg(s, CARD)
+    _add_rect(s, 0, 0, 0.12, 5.625, ACC)
+    _add_text(s, "Avertissement", 0.4, 1.0, 9.2, 0.7,
+              font_size=22, bold=True, color=ORA)
+    _add_text(s,
+        "Ce document est généré à titre éducatif uniquement par Apex Markets.\n"
+        "Les données proviennent de yfinance et peuvent être décalées ou incomplètes.\n"
+        "Aucune information contenue dans ce support ne constitue une recommandation d'investissement.\n"
+        "Tout investissement comporte un risque de perte en capital.",
+        0.4, 1.9, 9.2, 2.2, font_size=13, color=MUTED)
+    _add_text(s, f"Apex Markets — {datetime.now().strftime('%d/%m/%Y')}",
+              0.4, 4.8, 9.2, 0.35, font_size=10, color=MUTED, align=PP_ALIGN.CENTER)
 
-// ─── SLIDE 1 : Titre ─────────────────────────────────────
-{
-  const s = pres.addSlide();
-  s.background = { color: C.bg };
-  s.addShape(pres.shapes.RECTANGLE, { x: 0, y: 0,     w: 10, h: 0.08, fill: { color: C.acc }, line: { color: C.acc } });
-  s.addShape(pres.shapes.RECTANGLE, { x: 0, y: 5.545, w: 10, h: 0.08, fill: { color: C.acc }, line: { color: C.acc } });
-  s.addText(d.title_slide, { x: 0.5, y: 1.7, w: 9, h: 1.3, fontSize: 34, bold: true, color: C.acc2, align: 'center' });
-  s.addText(d.subtitle,    { x: 0.5, y: 3.1, w: 9, h: 0.7, fontSize: 14, color: C.muted, align: 'center' });
-  s.addText('Apex Markets',  { x: 0.5, y: 5.0, w: 9, h: 0.4, fontSize: 10, color: C.muted, align: 'center' });
-}
-
-// ─── SLIDE 2 : KPIs ───────────────────────────────────────
-{
-  const s = pres.addSlide();
-  s.background = { color: C.bg };
-  s.addShape(pres.shapes.RECTANGLE, { x: 0, y: 0, w: 10, h: 0.55, fill: { color: C.card }, line: { color: C.card } });
-  s.addText('Indicateurs Clés — ' + d.symbol,
-    { x: 0.3, y: 0.1, w: 9.4, h: 0.35, fontSize: 14, bold: true, color: C.acc2, margin: 0 });
-
-  const row1 = [
-    ['Prix actuel', d.last_close + ' ' + d.currency + '  (' + d.day_chg_pct + ')', d.day_chg_color],
-    ['Perf. période', d.total_ret, d.total_ret_color],
-    ['Vol. annualisée', d.vol_ann, C.ora],
-    ['Max Drawdown', d.max_dd, C.down],
-  ];
-  row1.forEach(([lbl, val, col], i) => addCard(s, 0.2 + i*2.4, 0.65, 2.2, 0.85, lbl, val, col));
-
-  const row2 = [
-    ['Sharpe Ratio', d.sharpe, C.acc],
-    ['Sortino Ratio', d.sortino, C.acc],
-    ['Market Cap', d.mkt_cap, C.acc],
-    ['Beta', d.beta, C.purple],
-  ];
-  row2.forEach(([lbl, val, col], i) => addCard(s, 0.2 + i*2.4, 1.6, 2.2, 0.85, lbl, val, col));
-
-  const row3 = [
-    ['P/E (TTM)', d.pe_ttm, C.acc2],
-    ['Div. Yield', d.div_yield, C.up],
-    ['ROE', d.roe, C.up],
-    ['Marge nette', d.marge_nette, C.up],
-  ];
-  row3.forEach(([lbl, val, col], i) => addCard(s, 0.2 + i*2.4, 2.55, 2.2, 0.85, lbl, val, col));
-
-  // Fear & Greed bar
-  const fgVal = d.fg;
-  const fgColor = fgVal < 25 ? C.down : fgVal < 45 ? C.ora : fgVal < 55 ? 'F9A825' : fgVal < 75 ? '69F0AE' : C.up;
-  const fgLabel = fgVal < 25 ? 'Peur extreme' : fgVal < 45 ? 'Peur' : fgVal < 55 ? 'Neutre' : fgVal < 75 ? 'Avidite' : 'Avidite extreme';
-  s.addShape(pres.shapes.RECTANGLE, { x: 0.2, y: 3.55, w: 9.6, h: 1.05, fill: { color: C.card }, line: { color: C.card } });
-  s.addText('Fear & Greed (proxy) : ' + fgVal + '/100 — ' + fgLabel,
-    { x: 0.3, y: 3.6, w: 9, h: 0.38, fontSize: 12, bold: true, color: fgColor, margin: 0 });
-  s.addShape(pres.shapes.RECTANGLE, { x: 0.3, y: 4.05, w: 9.4,             h: 0.18, fill: { color: '2A2D3E' }, line: { color: '2A2D3E' } });
-  s.addShape(pres.shapes.RECTANGLE, { x: 0.3, y: 4.05, w: 9.4 * fgVal/100, h: 0.18, fill: { color: fgColor  }, line: { color: fgColor  } });
-
-  s.addText('Revenue', { x: 5.5, y: 3.62, w: 2, h: 0.22, fontSize: 8, color: C.muted, margin: 0 });
-  s.addText(d.revenue, { x: 5.5, y: 3.85, w: 2, h: 0.32, fontSize: 13, bold: true, color: C.txt, margin: 0 });
-  s.addText('Secteur',      { x: 7.7, y: 3.62, w: 2.1, h: 0.22, fontSize: 8,  color: C.muted, margin: 0 });
-  s.addText(d.sector_short, { x: 7.7, y: 3.85, w: 2.1, h: 0.32, fontSize: 10, bold: true, color: C.txt, margin: 0 });
-
-  footer(s);
-}
-
-// ─── SLIDE 3-4 : Graphiques ───────────────────────────────
-addChartSlide('Graphique de Prix & Volume', 'price');
-addChartSlide('Indicateurs Techniques — RSI · MACD · Stochastique · OBV', 'tech');
-
-// ─── SLIDE 5 : Stats ──────────────────────────────────────
-{
-  const s = pres.addSlide();
-  s.background = { color: C.bg };
-  s.addShape(pres.shapes.RECTANGLE, { x: 0, y: 0, w: 10, h: 0.55, fill: { color: C.card }, line: { color: C.card } });
-  s.addText('Performance & Statistiques',
-    { x: 0.3, y: 0.1, w: 9.4, h: 0.35, fontSize: 14, bold: true, color: C.acc2, margin: 0 });
-  const perfData = [
-    ['Rend. total',    d.total_ret],   ['Vol. annualisee', d.vol_ann],
-    ['Sharpe Ratio',   d.sharpe],      ['Sortino Ratio',   d.sortino],
-    ['Max Drawdown',   d.max_dd],      ['Jours positifs',  d.pos_days],
-    ['Skewness',       d.skewness],    ['Kurtosis',        d.kurtosis],
-  ];
-  perfData.forEach(([lbl, val], i) => {
-    addCard(s, 0.2 + (i%4)*2.4, 0.65 + Math.floor(i/4)*1.05, 2.2, 0.9, lbl, val, C.acc);
-  });
-  footer(s);
-}
-
-// ─── SLIDE 6-8 : Graphiques ───────────────────────────────
-addChartSlide('Distribution des Rendements — vs Loi Normale', 'dist');
-addChartSlide('Drawdown Historique', 'dd');
-addChartSlide('Rendements Mensuels', 'monthly');
-
-// ─── SLIDE 9 : Risque ─────────────────────────────────────
-{
-  const s = pres.addSlide();
-  s.background = { color: C.bg };
-  s.addShape(pres.shapes.RECTANGLE, { x: 0, y: 0, w: 10, h: 0.55, fill: { color: C.card }, line: { color: C.card } });
-  s.addText('Analyse de Risque',
-    { x: 0.3, y: 0.1, w: 9.4, h: 0.35, fontSize: 14, bold: true, color: C.acc2, margin: 0 });
-  const riskData = [
-    ['VaR 95% (1j)', d.var95], ['VaR 99% (1j)', d.var99],
-    ['CVaR 95%', d.cvar95],    ['Downside Risk', d.downside],
-  ];
-  riskData.forEach(([lbl, val], i) => addCard(s, 0.2 + i*2.4, 0.7, 2.2, 0.9, lbl, val, C.down));
-  s.addShape(pres.shapes.RECTANGLE, { x: 0.2, y: 1.8, w: 9.6, h: 1.3, fill: { color: C.card }, line: { color: C.card } });
-  s.addShape(pres.shapes.RECTANGLE, { x: 0.2, y: 1.8, w: 0.06, h: 1.3, fill: { color: C.ora }, line: { color: C.ora } });
-  s.addText(
-    'Interpretation : Avec un niveau de confiance de 95%, la perte maximale attendue sur une journee est de ' + d.abs_var95 + '. ' +
-    'Dans les 5% de pires cas (CVaR 95%), la perte moyenne serait de ' + d.abs_cvar95 + '.',
-    { x: 0.4, y: 1.88, w: 9.2, h: 1.1, fontSize: 12, color: C.txt, margin: 0 }
-  );
-  footer(s);
-}
-
-// ─── SLIDE 10 : Disclaimer ────────────────────────────────
-{
-  const s = pres.addSlide();
-  s.background = { color: C.card };
-  s.addShape(pres.shapes.RECTANGLE, { x: 0, y: 0, w: 0.12, h: 5.625, fill: { color: C.acc }, line: { color: C.acc } });
-  s.addText('Avertissement', { x: 0.4, y: 1.0, w: 9.2, h: 0.7, fontSize: 22, bold: true, color: C.ora });
-  s.addText([
-    { text: 'Ce document est genere a titre educatif uniquement par Apex Markets.', options: { breakLine: true } },
-    { text: 'Les donnees proviennent de yfinance et peuvent etre decalees ou incompletes.', options: { breakLine: true } },
-    { text: "Aucune information contenue dans ce support ne constitue une recommandation d'investissement.", options: { breakLine: true } },
-    { text: 'Tout investissement comporte un risque de perte en capital.' }
-  ], { x: 0.4, y: 1.9, w: 9.2, h: 2.2, fontSize: 13, color: C.muted });
-  s.addText('Apex Markets — Generated ' + new Date().toLocaleDateString('fr-FR'),
-    { x: 0.4, y: 4.8, w: 9.2, h: 0.35, fontSize: 10, color: C.muted, align: 'center' });
-}
-
-pres.writeFile({ fileName: d.out_file })
-  .then(() => { console.log('OK'); })
-  .catch(e => { console.error(String(e)); process.exit(1); });
-"""
-
-    # ── Trouver l'exécutable Node.js (Windows + Unix) ───────
-    import shutil, sys, platform
-
-    def find_node() -> str:
-        """Retourne le chemin de node.exe / node selon l'OS."""
-        # 1. Dans le PATH standard
-        found = shutil.which("node")
-        if found:
-            return found
-        # 2. Via le shell utilisateur (récupère le PATH complet)
-        try:
-            if platform.system() == "Windows":
-                r = subprocess.run(["cmd", "/c", "where node"],
-                    capture_output=True, text=True, timeout=5)
-            else:
-                r = subprocess.run(["bash", "-lc", "which node"],
-                    capture_output=True, text=True, timeout=5)
-            path = r.stdout.strip().splitlines()[0].strip()
-            if path and os.path.isfile(path):
-                return path
-        except Exception:
-            pass
-        # 3. Emplacements courants Windows
-        if platform.system() == "Windows":
-            appdata     = os.environ.get("APPDATA", "")
-            localapp    = os.environ.get("LOCALAPPDATA", "")
-            userprofile = os.environ.get("USERPROFILE", "")
-            candidates = [
-                r"C:\Program Files\nodejs\node.exe",
-                r"C:\Program Files (x86)\nodejs\node.exe",
-                os.path.join(appdata,    r"npm\node.exe"),
-                os.path.join(localapp,   r"Programs\nodejs\node.exe"),
-                os.path.join(localapp,   r"nvm\current\node.exe"),
-                os.path.join(userprofile, r"scoop\apps\nodejs\current\node.exe"),
-                r"C:\tools\nodejs\node.exe",
-            ]
-            for c in candidates:
-                if os.path.isfile(c):
-                    return c
-            raise RuntimeError(
-                "Node.js introuvable automatiquement.\n\n"
-                "Dans le terminal, tapez : where node\n"
-                "   Tu obtiendras un chemin comme C:\\Program Files\\nodejs\\node.exe\n"
-                "   Ajoute ensuite cette ligne dans app2.py avant la fonction generate_pptx :\n\n"
-                "   NODE_EXE = r\'C:\\ton\\chemin\\node.exe\'\n\n"
-                "   Et remplace find_node() par NODE_EXE dans l'appel subprocess."
-            )
-        raise RuntimeError(
-            "Node.js introuvable. Vérifiez qu'il est installé et dans le PATH."
-        )
-
-    node_exe = node_path_override if (node_path_override and os.path.isfile(node_path_override)) else find_node()
-
-    # ── Trouver le dossier global node_modules (plusieurs méthodes) ──
-    def find_pptxgenjs_path() -> str:
-        """Retourne le chemin absolu vers le dossier pptxgenjs ou '' si non trouvé."""
-        # Méthode 1 : via APPDATA (fiable sur Windows)
-        appdata = os.environ.get("APPDATA", "")
-        if appdata:
-            candidate = os.path.join(appdata, "npm", "node_modules", "pptxgenjs")
-            if os.path.exists(candidate):
-                return candidate
-
-        # Méthode 2 : npm root -g via shell cmd (hérite du PATH utilisateur)
-        try:
-            r = subprocess.run(
-                ["cmd", "/c", "npm root -g"],
-                capture_output=True, text=True, timeout=10,
-            )
-            root = r.stdout.strip().splitlines()[0].strip()
-            candidate = os.path.join(root, "pptxgenjs")
-            if os.path.exists(candidate):
-                return candidate
-        except Exception:
-            pass
-
-        # Méthode 3 : chemin hardcodé connu
-        fallback = r"C:\Users\megan\AppData\Roaming\npm\node_modules\pptxgenjs"
-        if os.path.exists(fallback):
-            return fallback
-
-        return ""
-
-    pptxgenjs_path = find_pptxgenjs_path()
-
-    # Le script tourne depuis le dossier parent de pptxgenjs (= node_modules global)
-    # → require('pptxgenjs') fonctionne nativement sans NODE_PATH
-    if pptxgenjs_path:
-        run_cwd = os.path.dirname(pptxgenjs_path)  # …/AppData/Roaming/npm/node_modules
-    else:
-        run_cwd = tmp_dir if 'tmp_dir' in dir() else tempfile.gettempdir()
-
-    # ── Fichier de sortie dans le dossier temp de l'OS ───────
-    tmp_dir  = tempfile.gettempdir()
-    pid      = os.getpid()
-    out_pptx = os.path.join(tmp_dir, f"compass_{symbol}_{pid}.pptx")
-    tmp_json = os.path.join(tmp_dir, f"compass_{symbol}_{pid}.json")
-
-    # Mettre à jour le chemin de sortie dans le payload
-    payload["out_file"] = out_pptx
-
-    # Écrire le payload dans un fichier JSON
-    with open(tmp_json, "w", encoding="utf-8") as f:
-        json.dump(payload, f, ensure_ascii=False)
-
-    # ── Préparer le script Node.js ────────────────────────────
-    # Remplacer require('pptxgenjs') par le chemin absolu dans le JS
-    pptxgenjs_abs = "C:/Users/megan/AppData/Roaming/npm/node_modules/pptxgenjs"
-    # Vérifier dynamiquement si le chemin trouvé est différent
-    if pptxgenjs_path:
-        pptxgenjs_abs = pptxgenjs_path.replace("\\", "/")
-
-    node_script_final = node_script.replace(
-        "const pptxgen = require('pptxgenjs');",
-        f"const pptxgen = require('{pptxgenjs_abs}');"
-    ).replace(
-        "const d = JSON.parse(process.argv[2]);",
-        "const d = JSON.parse(require('fs').readFileSync(process.argv[2], 'utf8'));"
-    )
-
-    # ── Écrire et exécuter le script Node.js ─────────────────
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".js", delete=False, encoding="utf-8") as f:
-        f.write(node_script_final)
-        tmp_js = f.name
-
-    try:
-        result = subprocess.run(
-            [node_exe, tmp_js, tmp_json],
-            capture_output=True, text=True, timeout=120,
-            cwd=tmp_dir,
-        )
-        if result.returncode != 0:
-            raise RuntimeError(f"Node.js error:\n{result.stderr[:1000]}")
-        if not os.path.exists(out_pptx):
-            raise RuntimeError("Le fichier PPTX n'a pas été créé. Vérifiez que pptxgenjs est installé.")
-        with open(out_pptx, "rb") as f:
-            return f.read()
-    finally:
-        for p in [tmp_js, tmp_json, out_pptx]:
-            try:
-                if os.path.exists(p):
-                    os.unlink(p)
-            except Exception:
-                pass
+    # ── Sérialiser ──
+    buf = io.BytesIO()
+    prs.save(buf)
+    return buf.getvalue()
 
 
 # ══════════════════════════════════════════════════════════════
