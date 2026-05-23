@@ -450,15 +450,27 @@ def create_price_chart(df: pd.DataFrame, symbol: str, options: dict) -> go.Figur
                 line=dict(color="#ff9800", width=1.2),
             ), row=2, col=1)
 
-    # ── Suppression des gaps (weekends, nuits) comme TradingView ──
+    # ── Axe X catégoriel (comme TradingView) : chaque bougie est
+    #    espacée de manière égale, aucun gap weekend/nuit ──
+    # Formater les labels selon l'intervalle
     itv = options.get("interval", "1d")
-    is_intraday = itv in ("1m", "5m", "15m", "30m", "1h")
+    if itv in ("1m", "5m", "15m", "30m"):
+        tick_fmt = "%d %b %Hh%M"
+    elif itv == "1h":
+        tick_fmt = "%d %b %Hh"
+    elif itv in ("1d",):
+        tick_fmt = "%d %b %Y"
+    elif itv == "1wk":
+        tick_fmt = "%d %b %Y"
+    else:
+        tick_fmt = "%b %Y"
 
-    rangebreaks = [dict(bounds=["sat", "mon"])]  # supprimer weekends
-    if is_intraday:
-        # Supprimer les heures hors marché (pré/post : 20h–09h30 UTC-4)
-        # En UTC les marchés US ouvrent ~13:30 et ferment ~20:00
-        rangebreaks.append(dict(bounds=[20, 13.5], pattern="hour"))
+    # Réduire le nombre de ticks pour la lisibilité
+    n = len(df)
+    max_ticks = 30
+    tick_step = max(1, n // max_ticks)
+    tick_vals = list(df.index[::tick_step])
+    tick_text = [t.strftime(tick_fmt) for t in tick_vals]
 
     fig.update_layout(
         title=dict(text=f"<b>{symbol}</b> — Analyse du Prix", font_size=16),
@@ -470,9 +482,15 @@ def create_price_chart(df: pd.DataFrame, symbol: str, options: dict) -> go.Figur
         margin=dict(l=10, r=10, t=40, b=10),
         dragmode="pan",
     )
-    fig.update_xaxes(rangebreaks=rangebreaks, row=1, col=1)
-    if rows == 2:
-        fig.update_xaxes(rangebreaks=rangebreaks, row=2, col=1)
+    # Appliquer l'axe catégoriel sur toutes les lignes
+    for r in range(1, rows + 1):
+        fig.update_xaxes(
+            type="category",
+            tickvals=tick_vals,
+            ticktext=tick_text if r == rows else [""] * len(tick_vals),
+            tickangle=-45,
+            row=r, col=1,
+        )
 
     if options.get("log_scale"):
         fig.update_yaxes(type="log", row=1, col=1)
@@ -536,11 +554,16 @@ def create_technical_charts(df: pd.DataFrame, interval: str = "1d") -> go.Figure
                                      line=dict(color="#f9a825", width=1,
                                                dash="dot")), row=4, col=1)
 
-    # Suppression des gaps (weekends, nuits)
-    is_intraday = interval in ("1m", "5m", "15m", "30m", "1h")
-    rangebreaks = [dict(bounds=["sat", "mon"])]
-    if is_intraday:
-        rangebreaks.append(dict(bounds=[20, 13.5], pattern="hour"))
+    # Axe catégoriel : pas de gaps
+    n = len(df)
+    tick_step = max(1, n // 25)
+    tick_vals = list(df.index[::tick_step])
+    if interval in ("1m", "5m", "15m", "30m"):
+        tick_text = [t.strftime("%d %b %Hh%M") for t in tick_vals]
+    elif interval == "1h":
+        tick_text = [t.strftime("%d %b %Hh") for t in tick_vals]
+    else:
+        tick_text = [t.strftime("%d %b %Y") for t in tick_vals]
 
     fig.update_layout(
         paper_bgcolor=CHART_BG, plot_bgcolor=CHART_BG,
@@ -550,7 +573,13 @@ def create_technical_charts(df: pd.DataFrame, interval: str = "1d") -> go.Figure
         margin=dict(l=10, r=10, t=30, b=10),
     )
     for i in range(1, 5):
-        fig.update_xaxes(rangebreaks=rangebreaks, row=i, col=1)
+        fig.update_xaxes(
+            type="category",
+            tickvals=tick_vals,
+            ticktext=tick_text if i == 4 else [""] * len(tick_vals),
+            tickangle=-45,
+            row=i, col=1,
+        )
     for ax in ["xaxis", "xaxis2", "xaxis3", "xaxis4",
                "yaxis", "yaxis2", "yaxis3", "yaxis4"]:
         fig.update_layout(**{ax: dict(
@@ -569,15 +598,21 @@ def create_drawdown_chart(df: pd.DataFrame, symbol: str, interval: str = "1d") -
             line=dict(color=DOWN_COLOR, width=1.5),
             fillcolor="rgba(255,82,82,0.2)",
         ))
-    rangebreaks = [dict(bounds=["sat", "mon"])]
-    if interval in ("1m", "5m", "15m", "30m", "1h"):
-        rangebreaks.append(dict(bounds=[20, 13.5], pattern="hour"))
+    n = len(df)
+    tick_step = max(1, n // 25)
+    tick_vals = list(df.index[::tick_step])
+    if interval in ("1m", "5m", "15m", "30m"):
+        tick_text = [t.strftime("%d %b %Hh%M") for t in tick_vals]
+    elif interval == "1h":
+        tick_text = [t.strftime("%d %b %Hh") for t in tick_vals]
+    else:
+        tick_text = [t.strftime("%d %b %Y") for t in tick_vals]
     fig.update_layout(
         title=f"<b>{symbol}</b> — Drawdown historique (%)",
         paper_bgcolor=CHART_BG, plot_bgcolor=CHART_BG,
         yaxis=dict(ticksuffix="%", gridcolor=GRID_COLOR, tickfont_color="#8b92a5"),
-        xaxis=dict(gridcolor=GRID_COLOR, tickfont_color="#8b92a5",
-                   rangebreaks=rangebreaks),
+        xaxis=dict(type="category", tickvals=tick_vals, ticktext=tick_text,
+                   tickangle=-45, gridcolor=GRID_COLOR, tickfont_color="#8b92a5"),
         height=300, margin=dict(l=10, r=10, t=40, b=10),
     )
     return fig
@@ -1479,15 +1514,22 @@ def main():
                     fillcolor="rgba(255,152,0,0.15)",
                     name="Vol. glissante 30j",
                 ))
-                _rb = [dict(bounds=["sat", "mon"])]
-                if interval in ("1m", "5m", "15m", "30m", "1h"):
-                    _rb.append(dict(bounds=[20, 13.5], pattern="hour"))
+                _n = len(df)
+                _step = max(1, _n // 25)
+                _tv = list(df.index[::_step])
+                if interval in ("1m", "5m", "15m", "30m"):
+                    _tt = [t.strftime("%d %b %Hh%M") for t in _tv]
+                elif interval == "1h":
+                    _tt = [t.strftime("%d %b %Hh") for t in _tv]
+                else:
+                    _tt = [t.strftime("%d %b %Y") for t in _tv]
                 fig_vol.update_layout(
                     paper_bgcolor=CHART_BG, plot_bgcolor=CHART_BG,
                     yaxis=dict(ticksuffix="%", gridcolor=GRID_COLOR,
                                tickfont_color="#8b92a5"),
-                    xaxis=dict(gridcolor=GRID_COLOR, tickfont_color="#8b92a5",
-                               rangebreaks=_rb),
+                    xaxis=dict(type="category", tickvals=_tv, ticktext=_tt,
+                               tickangle=-45, gridcolor=GRID_COLOR,
+                               tickfont_color="#8b92a5"),
                     height=320, margin=dict(l=10, r=10, t=10, b=10),
                 )
                 st.plotly_chart(fig_vol, use_container_width=True, key="chart_7")
