@@ -2296,11 +2296,74 @@ def generate_pptx(
     _add_rect(s, 0.3, 4.0, 9.4 * fg / 100, 0.15, fg_color)
     _footer(s)
 
-    # ── SLIDES 3-4 : Graphiques ──
+    # ── SLIDE 3 : Profil société ──
+    desc = info.get("longBusinessSummary", "")
+    if desc or sector:
+        s = prs.slides.add_slide(blank)
+        _set_bg(s, BG)
+        _add_rect(s, 0, 0, 10, 0.55, CARD)
+        _add_text(s, f"Profil — {company_name}", 0.3, 0.1, 9.4, 0.35,
+                  font_size=14, bold=True, color=ACC2)
+        y_pos = 0.7
+        profile_items = [
+            ("Secteur", sector),
+            ("Industrie", industry),
+            ("Devise", currency),
+            ("Place de cotation", info.get("exchange", "N/A")),
+            ("Pays", info.get("country", "N/A")),
+            ("Nb. employés", f"{info.get('fullTimeEmployees', 'N/A'):,}".replace(",", " ") if info.get("fullTimeEmployees") else "N/A"),
+            ("Site web", info.get("website", "N/A")),
+        ]
+        for i, (lbl, val) in enumerate(profile_items):
+            if val and val != "N/A":
+                _add_text(s, f"{lbl} :  {val}", 0.4, y_pos + i * 0.32, 9.2, 0.28,
+                          font_size=11, color=WHITE)
+        if desc:
+            # Tronquer à ~500 caractères pour tenir dans la slide
+            short_desc = desc[:500] + ("…" if len(desc) > 500 else "")
+            _add_text(s, short_desc, 0.4, 3.0, 9.2, 2.2, font_size=10, color=MUTED)
+        _footer(s)
+
+    # ── SLIDE 4 : Fondamentaux détaillés ──
+    s = prs.slides.add_slide(blank)
+    _set_bg(s, BG)
+    _add_rect(s, 0, 0, 10, 0.55, CARD)
+    _add_text(s, f"Données Fondamentales — {symbol}", 0.3, 0.1, 9.4, 0.35,
+              font_size=14, bold=True, color=ACC2)
+    cur_sym = {"USD": "$", "EUR": "€", "GBP": "£", "JPY": "¥", "CHF": "CHF "}.get(currency, currency + " ")
+    fund_items = [
+        ("P/E (TTM)", fmt(info.get("trailingPE"), 1)),
+        ("P/E Forward", fmt(info.get("forwardPE"), 1)),
+        ("PEG", fmt(info.get("pegRatio"), 2)),
+        ("P/B", fmt(info.get("priceToBook"), 2)),
+        ("P/S", fmt(info.get("priceToSalesTrailing12Months"), 2)),
+        ("EV/EBITDA", fmt(info.get("enterpriseToEbitda"), 1)),
+        ("EV/Revenue", fmt(info.get("enterpriseToRevenue"), 2)),
+        ("ROE", fmt(info.get("returnOnEquity", 0)*100 if info.get("returnOnEquity") else None, 1, "%")),
+        ("ROA", fmt(info.get("returnOnAssets", 0)*100 if info.get("returnOnAssets") else None, 1, "%")),
+        ("Marge brute", fmt(info.get("grossMargins", 0)*100 if info.get("grossMargins") else None, 1, "%")),
+        ("Marge opérat.", fmt(info.get("operatingMargins", 0)*100 if info.get("operatingMargins") else None, 1, "%")),
+        ("Marge nette", fmt(info.get("profitMargins", 0)*100 if info.get("profitMargins") else None, 1, "%")),
+        ("Chiffre d'aff.", fmt_large(info.get("totalRevenue"), currency)),
+        ("EBITDA", fmt_large(info.get("ebitda"), currency)),
+        ("Free Cash Flow", fmt_large(info.get("freeCashflow"), currency)),
+        ("Total Cash", fmt_large(info.get("totalCash"), currency)),
+        ("Total Dette", fmt_large(info.get("totalDebt"), currency)),
+        ("Dette/Cap. propres", fmt(info.get("debtToEquity"), 2)),
+        ("Div. Yield", fmt(info.get("dividendYield"), 2, "%")),
+        ("Payout Ratio", fmt(info.get("payoutRatio", 0)*100 if info.get("payoutRatio") else None, 1, "%")),
+    ]
+    for i, (lbl, val) in enumerate(fund_items):
+        row = i // 4
+        col = i % 4
+        _add_card(s, 0.2 + col * 2.4, 0.65 + row * 0.95, 2.2, 0.8, lbl, val, ACC)
+    _footer(s)
+
+    # ── SLIDES 5-6 : Graphiques ──
     _add_chart_slide("Graphique de Prix & Volume", charts.get("price"))
     _add_chart_slide("Indicateurs Techniques — RSI · MACD · Stochastique · OBV", charts.get("tech"))
 
-    # ── SLIDE 5 : Stats ──
+    # ── SLIDE 7 : Stats ──
     s = prs.slides.add_slide(blank)
     _set_bg(s, BG)
     _add_rect(s, 0, 0, 10, 0.55, CARD)
