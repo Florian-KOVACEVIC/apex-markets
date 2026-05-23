@@ -689,7 +689,7 @@ def create_returns_distribution(df: pd.DataFrame) -> go.Figure:
             x_val = mean_r + sign * k * std_r
             fig.add_vline(x=x_val, line_color="#ab47bc",
                           line_dash="dot", opacity=alpha,
-                          annotation_text=f"{sign:+d}σ" if k == 1 else "",
+                          annotation_text=f"{sign:+d}σ",
                           annotation_font_color="#ab47bc")
 
     # Annotation skewness / kurtosis
@@ -790,11 +790,20 @@ def create_monthly_returns_heatmap(df: pd.DataFrame, symbol: str) -> go.Figure:
                     "Jul","Aoû","Sep","Oct","Nov","Déc"]
     pivot.columns = [month_labels[m - 1] for m in pivot.columns]
 
+    # Préparer les annotations : chaîne vide pour les NaN, sinon "X.X%"
+    text_display = []
+    for row in pivot.values:
+        text_row = []
+        for v in row:
+            text_row.append(f"{v:.1f}%" if not np.isnan(v) else "")
+        text_display.append(text_row)
+
     fig = go.Figure(go.Heatmap(
         z=pivot.values, x=pivot.columns, y=pivot.index.astype(str),
         colorscale="RdYlGn", zmid=0,
-        text=np.round(pivot.values, 1),
-        texttemplate="%{text}%",
+        text=text_display,
+        texttemplate="%{text}",
+        hovertemplate="Mois: %{x}<br>Année: %{y}<br>Rendement: %{z:.1f}%<extra></extra>",
         colorbar=dict(tickfont_color="#ccc", ticksuffix="%"),
     ))
     fig.update_layout(
@@ -813,11 +822,14 @@ def create_monthly_returns_heatmap(df: pd.DataFrame, symbol: str) -> go.Figure:
 # ══════════════════════════════════════════════════════════════
 
 def fmt(value, decimals=2, suffix="", prefix="", na_str="N/A") -> str:
-    """Formate une valeur numérique de façon sûre."""
+    """Formate une valeur numérique en format français (espace milliers, virgule décimale)."""
     try:
         if value is None or (isinstance(value, float) and np.isnan(value)):
             return na_str
-        return f"{prefix}{value:,.{decimals}f}{suffix}"
+        formatted = f"{value:,.{decimals}f}"
+        # Conversion en format FR : 1,234.56 → 1 234,56
+        formatted = formatted.replace(",", "\u00a0").replace(".", ",")
+        return f"{prefix}{formatted}{suffix}"
     except Exception:
         return str(value)
 
@@ -1342,7 +1354,8 @@ def main():
             vol_ann     = stats.get("volatility_annual", 0)
             max_dd      = stats.get("max_drawdown", 0)
 
-            st.markdown(f"### {company_name}  `{symbol_input}`")
+            st.markdown(f"### {symbol_input}  <span style='font-size:0.75em;color:#8b92a5;font-weight:400;'>{company_name}</span>",
+                        unsafe_allow_html=True)
             if sector:
                 st.caption(f"{sector} · {industry}")
 
