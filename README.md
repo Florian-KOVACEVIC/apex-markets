@@ -1,6 +1,6 @@
 # Apex Markets — Financial Analysis
 
-**[Live Demo](https://compass-pro-florian-kovacevic.streamlit.app/)**
+**[Live Demo](https://apex-markets-florian-kovacevic.streamlit.app/)**
 
 Advanced financial analysis application with detailed fundamental metrics, statistical tools, and multi-asset comparison.
 
