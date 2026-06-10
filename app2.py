@@ -1,10 +1,9 @@
 """
-========================================================
  Apex Markets — Application d'Analyse Financière
-========================================================
-Auteur  : Apex Markets
+ -----------------------------------------------
+Auteur  : FloKov
 Stack   : Streamlit · yfinance · Pandas · NumPy · Plotly
-Usage   : streamlit run app.py
+Usage   : streamlit run app2.py
 """
 
 import json
@@ -37,7 +36,7 @@ TOOLTIPS = {
     "Clôture préc.":  "Prix de clôture de la séance précédente.",
     "52-sem. High":   "Plus haut prix atteint sur les 52 dernières semaines.",
     "52-sem. Low":    "Plus bas prix atteint sur les 52 dernières semaines.",
-    "Volume":         "Nombre de titres échangés sur la séance. Un volume élevé confirme la tendance.",
+    "Volume":         "Nombre de titres échangés sur la séance, un volume élevé confirme la tendance.",
     # Valorisation
     "Market Cap":     "Capitalisation boursière = Prix × Nombre d'actions. Mesure la taille de l'entreprise.",
     "Enterprise V.":  "Valeur d'entreprise = Market Cap + Dette - Trésorerie. Prix réel d'une acquisition.",
