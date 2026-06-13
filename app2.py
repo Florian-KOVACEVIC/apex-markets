@@ -1,6 +1,6 @@
 """
- Apex Markets — Application d'Analyse Financière
- -----------------------------------------------
+Apex Markets — Application d'Analyse Financière
+-----------------------------------------------
 Auteur  : FloKov
 Stack   : Streamlit · yfinance · Pandas · NumPy · Plotly
 Usage   : streamlit run app2.py
@@ -21,7 +21,6 @@ import io
 import urllib.parse
 import urllib.request
 from scipy import stats as scipy_stats
-
 
 # ══════════════════════════════════════════════════════════════
 #  TOOLTIPS — Définitions des métriques clés
@@ -99,7 +98,6 @@ def metric_with_tooltip(label: str, value: str, tooltip_key: str = None, col=Non
     tip = TOOLTIPS.get(tooltip_key or label, "")
     target = col if col is not None else st
     target.metric(label=label, value=value, help=tip if tip else None)
-
 
 # ══════════════════════════════════════════════════════════════
 #  TICKER SEARCH — Recherche via Yahoo Finance
