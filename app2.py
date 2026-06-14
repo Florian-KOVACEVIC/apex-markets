@@ -8,7 +8,7 @@ Usage   : streamlit run app2.py
 
 import json
 import warnings
-warnings.filterwarnings("ignore")
+warnings.filterwarnings("ignore") 
 
 import streamlit as st
 import yfinance as yf
