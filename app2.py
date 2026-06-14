@@ -7,7 +7,7 @@ Usage   : streamlit run app2.py
 """
 
 import json
-import warnings 
+import warnings
 warnings.filterwarnings("ignore")
 
 import streamlit as st
