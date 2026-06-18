@@ -1882,7 +1882,6 @@ def fig_to_base64(fig: go.Figure, width: int = 900, height: int = 420) -> str:
     except Exception:
         return None
 
-
 # ── Graphiques matplotlib pour export PPT (sans kaleido) ─────────────────
 
 def _mpl_buf_to_b64(buf) -> str:
@@ -2425,5 +2424,3 @@ def generate_pptx(
 # ══════════════════════════════════════════════════════════════
 if __name__ == "__main__":
     main()
-
-# python -m streamlit run app2.py
