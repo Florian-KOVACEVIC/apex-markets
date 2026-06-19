@@ -5,7 +5,7 @@
 Advanced financial analysis application with detailed fundamental metrics, statistical tools, and multi-asset comparison.
 
 Built as a personal project to deepen my understanding of equity analysis and quantitative metrics.
-
+ 
 ## Features
 
 ### Fundamental Analysis
