@@ -4,7 +4,7 @@ Apex Markets — Application d'Analyse Financière
 Auteur  : FloKov
 Stack   : Streamlit · yfinance · Pandas · NumPy · Plotly
 Usage   : streamlit run app2.py
-"""
+""" 
 
 import json
 import warnings
